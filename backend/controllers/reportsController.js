@@ -58,7 +58,7 @@ const weekKey = (d) => {
   return dt.toISOString().slice(0, 10); // YYYY-MM-DD
 };
 
-// ✅ IMPORTANT: your Project schema doesn't have clientId/client,
+// ✅ IMPORTANT:  Project schema doesn't have clientId/client,
 // so we treat "client's projects" as projects where the client user is in members[].
 const buildProjectScope = (req) => {
   if (isAdmin(req)) return { archived: { $ne: true } };
@@ -166,10 +166,7 @@ exports.getDashboard = async (req, res) => {
       .map((w, idx) => ({ week: `W${idx + 1}`, planned: w.planned, completed: w.completed }));
 
     // ---------------- TIME DISTRIBUTION (by task.category) ----------------
-    // ✅ This shows "Uncategorized" if:
-    // - your Task schema doesn't have `category`, OR
-    // - tasks have category missing, OR
-    // - timeEntry.taskId doesn't match a task.
+
     const timeAgg = await TimeEntry.aggregate([
       {
         $match: {
