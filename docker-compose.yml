@@ -1,0 +1,38 @@
+version: "3.8"
+
+services:
+  mongo:
+    image: mongo:7
+    restart: always
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - appnet
+
+  backend:
+    build: ./backend
+    restart: always
+    environment:
+      - PORT=5000
+      - MONGO_URI=mongodb://mongo:27017/taskflow
+      - JWT_SECRET=changeme_in_prod
+    depends_on:
+      - mongo
+    networks:
+      - appnet
+
+  frontend:
+    build: .
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - appnet
+
+volumes:
+  mongo_data:
+
+networks:
+  appnet:
