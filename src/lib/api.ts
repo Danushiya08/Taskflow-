@@ -1,11 +1,12 @@
 // src/lib/api.ts
 import axios from "axios";
 
-const API_BASE = "/api";
+const API_BASE = `${import.meta.env.VITE_API_URL}/api`;
 
 // Create axios instance
 export const api = axios.create({
   baseURL: API_BASE,
+   withCredentials: true,
 });
 
 // Attach token automatically to every request
