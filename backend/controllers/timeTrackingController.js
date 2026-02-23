@@ -90,7 +90,7 @@ function csvEscape(v) {
 
 // -----------------------------------------------------------
 // ✅ Create Time Entry
-// FIX: status MUST match schema enum (pending/draft/approved/rejected)
+// status MUST match schema enum (pending/draft/approved/rejected)
 // -----------------------------------------------------------
 exports.createEntry = async (req, res) => {
   try {
@@ -333,7 +333,7 @@ exports.deleteEntry = async (req, res) => {
 
 // -----------------------------------------------------------
 // ✅ Review a single entry (Admin/PM)
-// FIX: Actually update the entry status + reviewer fields
+// Actually update the entry status + reviewer fields
 // -----------------------------------------------------------
 exports.reviewEntry = async (req, res) => {
   try {
