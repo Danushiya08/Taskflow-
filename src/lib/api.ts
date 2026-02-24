@@ -1,11 +1,11 @@
 // src/lib/api.ts
 import axios from "axios";
 
-const API_BASE = "/api";
+const API_BASE =
+  import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "http://localhost:5000";
 
-// Create axios instance
 export const api = axios.create({
-  baseURL: API_BASE,
+  baseURL: `${API_BASE}/api`,
 });
 
 // Attach token automatically to every request
@@ -25,7 +25,6 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err?.response?.status === 401) {
-      // token invalid/expired
       localStorage.removeItem("token");
       localStorage.removeItem("user");
     }
