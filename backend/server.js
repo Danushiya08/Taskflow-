@@ -1,6 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const rateLimit = require("express-rate-limit");
 require("dotenv").config();
 
 const authRoutes = require("./routes/auth.routes");
@@ -17,6 +18,27 @@ const calendarRoutes = require("./routes/calendar.routes");
 
 const app = express();
 
+/**
+ * Railway / proxies:
+ * Ensures req.ip is correct (important for rate limiting)
+ */
+app.set("trust proxy", 1);
+
+/**
+ * Rate limiting (basic protection)
+ */
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 200, // adjust as needed
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many requests, please try again later." },
+});
+app.use(limiter);
+
+/**
+ * CORS (keep as-is for now, but you can lock it later)
+ */
 app.use(
   cors({
     origin: true,
@@ -24,17 +46,40 @@ app.use(
   })
 );
 
-app.use(express.json());
+/**
+ * Body parsing (add simple safety limits)
+ */
+app.use(express.json({ limit: "1mb" }));
 
+/**
+ * Request logger (keep your logger)
+ */
 app.use((req, res, next) => {
   console.log("➡️", req.method, req.url);
   next();
 });
 
+/**
+ * Root route
+ */
 app.get("/", (req, res) => {
   res.send("TaskFlow Backend is running 🚀");
 });
 
+/**
+ * Health check (enterprise standard)
+ */
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "OK",
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
+ * Routes
+ */
 app.use("/api/auth", authRoutes);
 app.use("/api/test", testRoutes);
 app.use("/api", meRoutes);
@@ -46,6 +91,24 @@ app.use("/api", timeTrackingRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/budget", budgetRoutes);
 app.use("/api/calendar", calendarRoutes);
+
+/**
+ * 404 handler (for unknown routes)
+ */
+app.use((req, res) => {
+  res.status(404).json({ message: "Route not found" });
+});
+
+/**
+ * Global error handler (must be last)
+ */
+app.use((err, req, res, next) => {
+  console.error("🔥 Error:", err);
+
+  res.status(err.status || 500).json({
+    message: err.message || "Internal Server Error",
+  });
+});
 
 const PORT = process.env.PORT || 5000;
 
