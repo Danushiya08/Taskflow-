@@ -5,6 +5,9 @@ const router = express.Router();
 const authMiddleware = require("../middleware/authMiddleware");
 const Project = require("../models/Project");
 
+// ✅ use membership table (ProjectMember)
+const ProjectMember = require("../models/ProjectMember");
+
 // ---------- helpers ----------
 const refId = (val) => {
   if (!val) return null;
@@ -28,8 +31,6 @@ const getUserId = (req) => String(req.user?.id || req.user?._id || "");
 
 const isAdmin = (req) => normalizeRole(req.user?.role) === "admin";
 const isPM = (req) => normalizeRole(req.user?.role) === "project-manager";
-
-// ✅ NEW (minimal additions)
 const isTeam = (req) => normalizeRole(req.user?.role) === "team-member";
 const isClient = (req) => normalizeRole(req.user?.role) === "client";
 
@@ -43,19 +44,50 @@ const isCreatorOf = (req, project) =>
 const canViewProject = (req) => Boolean(getUserId(req));
 
 // ✅ Admin can edit any project
-// ✅ PM can edit ONLY if PM is manager or creator (matches your requirement)
+// ✅ PM can edit ONLY if PM is manager or creator
 const canEditProject = (req, project) => {
   if (isAdmin(req)) return true;
-  if (isPM(req)) return isProjectManagerOf(req, project) || isCreatorOf(req, project); // ✅ CHANGED
+  if (isPM(req)) return isProjectManagerOf(req, project) || isCreatorOf(req, project);
   return false;
 };
 
 // ✅ Admin can delete any project
-// ✅ PM can delete ONLY if PM is manager or creator (matches your requirement)
+// ✅ PM can delete ONLY if PM is manager or creator
 const canDeleteProject = (req, project) => {
   if (isAdmin(req)) return true;
-  if (isPM(req)) return isProjectManagerOf(req, project) || isCreatorOf(req, project); // ✅ CHANGED
+  if (isPM(req)) return isProjectManagerOf(req, project) || isCreatorOf(req, project);
   return false;
+};
+
+// ✅ NEW: sync ProjectMember docs (minimal + safe)
+const uniqIds = (arr) =>
+  [...new Set((Array.isArray(arr) ? arr : []).filter(Boolean).map((x) => String(x)))];
+
+const upsertMembersForProject = async (project) => {
+  const projectId = project._id;
+
+  const pmId = project.projectManager ? String(project.projectManager) : null;
+  const creatorId = project.createdBy ? String(project.createdBy) : null;
+  const memberIds = uniqIds(project.members || []);
+  const clientId = project.client ? String(project.client) : null;
+
+  const desired = [];
+
+  if (pmId) desired.push({ user: pmId, roleInProject: "project-manager" });
+  if (creatorId && creatorId !== pmId)
+    desired.push({ user: creatorId, roleInProject: "project-manager" });
+
+  for (const mid of memberIds) desired.push({ user: mid, roleInProject: "team-member" });
+  if (clientId) desired.push({ user: clientId, roleInProject: "client" });
+
+  // keep it small: remove old & recreate (simple + consistent)
+  await ProjectMember.deleteMany({ project: projectId });
+  if (desired.length) {
+    await ProjectMember.insertMany(
+      desired.map((d) => ({ project: projectId, user: d.user, roleInProject: d.roleInProject })),
+      { ordered: false }
+    ).catch(() => {});
+  }
 };
 
 // =====================================================
@@ -69,25 +101,43 @@ router.get("/", authMiddleware, async (req, res) => {
 
     const userId = getUserId(req);
 
-    // ✅ NEW: role-based filtering (fixes client seeing other projects)
-    let filter = {};
+    // ✅ Admin → all projects
+    if (isAdmin(req)) {
+      const projects = await Project.find({})
+        .populate("projectManager", "name role email")
+        .populate("members", "name role email")
+        .sort({ createdAt: -1 });
 
-    // Client → only their projects
+      return res.json({ projects });
+    }
+
+    // ✅ FIX (Client): do NOT depend on ProjectMember only
+    // Client projects come from Project.client field in your schema
     if (isClient(req)) {
-      filter = { $or: [{ clientId: userId }, { client: userId }] };
+      const projects = await Project.find({ client: userId })
+        .populate("projectManager", "name role email")
+        .populate("members", "name role email")
+        .sort({ createdAt: -1 });
+
+      return res.json({ projects });
     }
 
-    // Team member → projects where they are a member (optional but correct)
-    else if (isTeam(req)) {
-      filter = { members: userId };
-    }
+    // ✅ PM / Team → fetch project ids from ProjectMember table
+    const memberships = await ProjectMember.find({ user: userId }).select("project roleInProject");
+    const projectIds = memberships.map((m) => m.project);
 
-    // PM → projects they manage OR created (optional but correct)
-    else if (isPM(req)) {
-      filter = { $or: [{ projectManager: userId }, { createdBy: userId }] };
-    }
+    let filter = { _id: { $in: projectIds } };
 
-    // Admin → all projects (default filter = {})
+    // ✅ Optional: PM can also see projects they manage or created (even if membership missing)
+    if (isPM(req)) {
+      filter = {
+        $or: [
+          { _id: { $in: projectIds } },
+          { projectManager: userId },
+          { createdBy: userId },
+        ],
+      };
+    }
 
     const projects = await Project.find(filter)
       .populate("projectManager", "name role email")
@@ -122,6 +172,8 @@ router.post("/", authMiddleware, async (req, res) => {
       members,
       budgetAllocated,
       dueDate,
+
+      // accept both, but your schema is ONLY `client`
       clientId,
       client,
     } = req.body;
@@ -137,6 +189,10 @@ router.post("/", authMiddleware, async (req, res) => {
         ? userId
         : null;
 
+    // ✅ FIX: map to schema field `client`
+    const chosenClient =
+      (client && String(client).trim()) || (clientId && String(clientId).trim()) || null;
+
     const project = await Project.create({
       name: String(name).trim(),
       description: description ? String(description) : "",
@@ -150,10 +206,12 @@ router.post("/", authMiddleware, async (req, res) => {
       progress: 0,
       archived: false,
 
-      // keep your existing client linking (supports both shapes)
-      clientId: clientId ? String(clientId) : undefined,
-      client: client ? String(client) : undefined,
+      // ✅ schema-supported field
+      client: chosenClient,
     });
+
+    // ✅ NEW: keep ProjectMember table in sync
+    await upsertMembersForProject(project);
 
     const populated = await Project.findById(project._id)
       .populate("projectManager", "name role email")
@@ -200,7 +258,19 @@ router.patch("/:id", authMiddleware, async (req, res) => {
       project.members = Array.isArray(body.members) ? body.members : [];
     }
 
+    // ✅ NEW: allow updating client properly (schema is `client`)
+    if (body.client !== undefined || body.clientId !== undefined) {
+      const chosenClient =
+        (body.client && String(body.client).trim()) ||
+        (body.clientId && String(body.clientId).trim()) ||
+        null;
+      project.client = chosenClient;
+    }
+
     await project.save();
+
+    // ✅ NEW: keep ProjectMember table in sync
+    await upsertMembersForProject(project);
 
     const populated = await Project.findById(project._id)
       .populate("projectManager", "name role email")
@@ -252,7 +322,9 @@ router.delete("/:id", authMiddleware, async (req, res) => {
       return res.status(403).json({ message: "Not allowed to delete this project" });
     }
 
+    await ProjectMember.deleteMany({ project: project._id }).catch(() => {});
     await Project.deleteOne({ _id: project._id });
+
     return res.json({ message: "Project deleted" });
   } catch (err) {
     return res.status(500).json({ message: "Server error", error: err.message });

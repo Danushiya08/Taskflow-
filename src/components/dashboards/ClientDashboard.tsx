@@ -83,7 +83,9 @@ export function ClientDashboard() {
         setProjectsRaw(projects);
 
         const taskCalls = projects.map(async (p) => {
-          const tRes = await api.get<{ tasks: BackendTask[] }>(`/${p._id}/tasks`);
+          // ✅ FIX: backend mounts task routes under "/api" (not "/api/tasks")
+          // so tasks endpoint is: GET /api/projects/:projectId/tasks
+          const tRes = await api.get<{ tasks: BackendTask[] }>(`/projects/${p._id}/tasks`);
           return tRes.data?.tasks ?? [];
         });
 
@@ -116,15 +118,22 @@ export function ClientDashboard() {
         teamCount: Array.isArray(p.members) ? p.members.length : 0,
         budget: `$${Number(p.budget?.allocated ?? 0).toLocaleString()}`,
         spent: `$${Number(p.budget?.spent ?? 0).toLocaleString()}`,
-        phase: p.status === "planning" ? "Planning" : p.status === "active" ? "Active" : p.status === "on-hold" ? "On Hold" : "Completed",
+        phase:
+          p.status === "planning"
+            ? "Planning"
+            : p.status === "active"
+            ? "Active"
+            : p.status === "on-hold"
+            ? "On Hold"
+            : "Completed",
       };
     });
   }, [projectsRaw, tasksRaw]);
 
   const clientTasks: Task[] = useMemo(() => {
-    // ✅ Client-safe tasks: If you do not want titles for clients, change return [].
     return tasksRaw.map((t) => {
-      const projectName = projectsRaw.find((p) => String(p._id) === String(t.projectId))?.name || "Project";
+      const projectName =
+        projectsRaw.find((p) => String(p._id) === String(t.projectId))?.name || "Project";
       const progress = t.status === "done" ? 100 : t.status === "in-progress" ? 50 : 0;
 
       return {
@@ -151,7 +160,6 @@ export function ClientDashboard() {
     return { active, onTrack, atRisk, top, teamMembers };
   }, [myProjects]);
 
-  // simple chart: use your projects progress as points
   const projectProgressData = useMemo(() => {
     const rows = myProjects.slice(0, 6).map((p, idx) => ({
       week: `P${idx + 1}`,
@@ -194,7 +202,13 @@ export function ClientDashboard() {
   ];
 
   const recentUpdates = [
-    { title: "Projects synced", project: "All Projects", description: "Dashboard loaded from live backend data", date: "Today", type: "milestone" },
+    {
+      title: "Projects synced",
+      project: "All Projects",
+      description: "Dashboard loaded from live backend data",
+      date: "Today",
+      type: "milestone",
+    },
   ];
 
   if (loading) {
@@ -212,7 +226,8 @@ export function ClientDashboard() {
         <h1 className="text-3xl text-gray-900">Client Portal</h1>
         <div className="p-4 rounded border border-red-200 bg-red-50 text-red-700">{errMsg}</div>
         <p className="text-sm text-gray-600">
-          Check backend logs for: <span className="font-mono">GET /projects</span> and <span className="font-mono">GET /api/&lt;projectId&gt;/tasks</span>
+          Check backend logs for: <span className="font-mono">GET /projects</span> and{" "}
+          <span className="font-mono">GET /api/projects/&lt;projectId&gt;/tasks</span>
         </p>
       </div>
     );
@@ -235,7 +250,9 @@ export function ClientDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl text-gray-900">{stats.active}</div>
-            <p className="text-xs text-gray-600 mt-1">{stats.onTrack} on track, {stats.atRisk} need attention</p>
+            <p className="text-xs text-gray-600 mt-1">
+              {stats.onTrack} on track, {stats.atRisk} need attention
+            </p>
           </CardContent>
         </Card>
 
@@ -293,7 +310,11 @@ export function ClientDashboard() {
                   <CardDescription>Current Phase: {project.phase ?? "—"}</CardDescription>
                 </div>
                 <Badge className={getStatusColor(project.status)}>
-                  {project.status === "on-track" ? "On Track" : project.status === "at-risk" ? "At Risk" : "Delayed"}
+                  {project.status === "on-track"
+                    ? "On Track"
+                    : project.status === "at-risk"
+                    ? "At Risk"
+                    : "Delayed"}
                 </Badge>
               </div>
             </CardHeader>
@@ -313,7 +334,9 @@ export function ClientDashboard() {
                 </div>
                 <div>
                   <p className="text-gray-600">Tasks</p>
-                  <p className="text-gray-900">{project.tasks?.completed ?? 0}/{project.tasks?.total ?? 0}</p>
+                  <p className="text-gray-900">
+                    {project.tasks?.completed ?? 0}/{project.tasks?.total ?? 0}
+                  </p>
                 </div>
                 <div>
                   <p className="text-gray-600">Budget</p>
@@ -327,7 +350,9 @@ export function ClientDashboard() {
 
               <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
                 <Users className="w-4 h-4 text-gray-600" />
-                <span className="text-sm text-gray-600">{project.teamCount ?? 0} team members assigned</span>
+                <span className="text-sm text-gray-600">
+                  {project.teamCount ?? 0} team members assigned
+                </span>
               </div>
             </CardContent>
           </Card>
@@ -342,14 +367,20 @@ export function ClientDashboard() {
             <CardDescription>Live progress snapshot</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
+            <div className="w-full min-w-0">
+              <ResponsiveContainer width="100%" height={256}>
                 <LineChart data={projectProgressData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="week" />
                   <YAxis />
                   <Tooltip />
-                  <Line type="monotone" dataKey="progress" stroke="#3b82f6" strokeWidth={2} dot={{ r: 4 }} />
+                  <Line
+                    type="monotone"
+                    dataKey="progress"
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    dot={{ r: 4 }}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -372,7 +403,9 @@ export function ClientDashboard() {
                       <p className="text-sm text-gray-900">{milestone.name}</p>
                       <span className="text-xs text-gray-600">{milestone.date}</span>
                     </div>
-                    <p className="text-xs text-gray-500 capitalize">{milestone.status.replace("-", " ")}</p>
+                    <p className="text-xs text-gray-500 capitalize">
+                      {milestone.status.replace("-", " ")}
+                    </p>
                   </div>
                 </div>
               ))}

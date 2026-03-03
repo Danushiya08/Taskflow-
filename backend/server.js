@@ -15,6 +15,9 @@ const timeTrackingRoutes = require("./routes/timeTracking.routes");
 const reportsRoutes = require("./routes/reports.routes");
 const budgetRoutes = require("./routes/budget.routes");
 const calendarRoutes = require("./routes/calendar.routes");
+const documentsRoutes = require("./routes/documents.routes");
+const cloudRoutes = require("./routes/cloud.routes");
+const projectRolesRoutes = require("./routes/projectRoles.routes");
 
 const app = express();
 
@@ -91,6 +94,10 @@ app.use("/api", timeTrackingRoutes);
 app.use("/api/reports", reportsRoutes);
 app.use("/api/budget", budgetRoutes);
 app.use("/api/calendar", calendarRoutes);
+app.use("/uploads", require("express").static("uploads"));
+app.use("/api", documentsRoutes);
+app.use("/api", cloudRoutes);
+app.use("/api", projectRolesRoutes);
 
 /**
  * 404 handler (for unknown routes)

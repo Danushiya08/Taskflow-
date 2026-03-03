@@ -57,13 +57,12 @@ const canManageTasksForProject = (req, project) => {
 
 // =====================================================
 // ✅ CLIENT CAN VIEW THIS PROJECT?
-// (prevents client from opening ANY projectId tasks)
 // =====================================================
 const clientCanViewProject = (req, project) => {
   if (!isClient(req)) return false;
   const cid = userIdFromReq(req);
 
-  // ✅ FIX: Project schema should use "client" as ObjectId ref User
+  // ✅ Your Project schema uses `client`
   const projectClientId = id(project?.client) || id(project?.client?._id);
 
   return projectClientId === cid;
@@ -86,7 +85,6 @@ const recalcProjectProgress = async (projectId) => {
 // ✅ CLIENT: GET ALL MY TASKS (across all my projects)
 // URL: GET /api/tasks/client/tasks
 // Optional: ?projectId=xxxx to filter one project
-// IMPORTANT: must be above "/:projectId/tasks"
 // =====================================================
 router.get("/client/tasks", authMiddleware, async (req, res) => {
   try {
@@ -95,7 +93,7 @@ router.get("/client/tasks", authMiddleware, async (req, res) => {
     const clientId = userIdFromReq(req);
     if (!clientId) return res.status(401).json({ message: "Unauthorized" });
 
-    // ✅ FIX: only use "client" field
+    // ✅ only use `client`
     const clientProjects = await Project.find({ client: clientId }).select("_id");
     const projectIds = clientProjects.map((p) => p._id);
 
@@ -105,7 +103,6 @@ router.get("/client/tasks", authMiddleware, async (req, res) => {
 
     const { projectId } = req.query;
 
-    // ✅ if projectId provided, ensure it belongs to this client
     if (projectId && !projectIds.some((x) => String(x) === String(projectId))) {
       return res.status(403).json({ message: "Not allowed for this project" });
     }
@@ -160,14 +157,12 @@ const getProjectTasksHandler = async (req, res) => {
 
 // =====================================================
 // ✅ CREATE TASK (ADMIN + PM)
-// Adds category support for Reports
 // =====================================================
 const createProjectTaskHandler = async (req, res) => {
   try {
     const project = await Project.findById(req.params.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
 
-    // client/team cannot create tasks
     if (!canManageTasksForProject(req, project)) {
       return res.status(403).json({ message: "You are not allowed to create tasks for this project" });
     }
@@ -184,9 +179,7 @@ const createProjectTaskHandler = async (req, res) => {
       priority: priority || "medium",
       dueDate: dueDate ? new Date(dueDate) : null,
       assignedTo: assignedTo || null,
-
       category: category || "Development",
-
       createdBy: req.user.id || req.user?._id,
     });
 
@@ -210,9 +203,6 @@ router.post("/:projectId/tasks", authMiddleware, createProjectTaskHandler);
 
 // =====================================================
 // UPDATE TASK
-// - Team members can update ONLY status for tasks assigned to them
-// - Admin/PM can update anything
-// - Client cannot update
 // =====================================================
 router.patch("/tasks/:id", authMiddleware, async (req, res) => {
   try {
@@ -258,8 +248,6 @@ router.patch("/tasks/:id", authMiddleware, async (req, res) => {
 
 // =====================================================
 // ✅ DELETE TASK (ADMIN + PM ONLY)
-// URL (with your app.use("/api", taskRoutes)):
-// DELETE /api/tasks/:id
 // =====================================================
 router.delete("/tasks/:id", authMiddleware, async (req, res) => {
   try {
