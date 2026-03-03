@@ -221,7 +221,7 @@ export function TasksPage() {
 
   const updateTask = async (taskId: string, patch: any) => {
     try {
-      const res = await api.patch(`/api/tasks/${taskId}`, patch);
+      const res = await api.patch(`/tasks/${taskId}`, patch);
       toast.success(res.data?.message || "Task updated");
       await loadTasks(selectedProjectId);
     } catch (err: any) {
@@ -231,7 +231,7 @@ export function TasksPage() {
 
   const deleteTask = async (taskId: string) => {
     try {
-      const res = await api.delete(`/api/tasks/${taskId}`);
+      const res = await api.delete(`/tasks/${taskId}`);
       toast.success(res.data?.message || "Task deleted");
       await loadTasks(selectedProjectId);
     } catch (err: any) {

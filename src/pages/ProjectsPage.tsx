@@ -283,7 +283,7 @@ export function ProjectsPage() {
     if (!canUpdateTasks) return;
     try {
       
-      await api.patch(`/api/tasks/${taskId}`, { status });
+      await api.patch(`/tasks/${taskId}`, { status });
 
       toast.success("Task updated");
       if (viewTarget?._id) {

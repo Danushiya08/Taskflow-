@@ -222,10 +222,8 @@ router.patch("/tasks/:id", authMiddleware, async (req, res) => {
     const project = await Project.findById(task.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
 
-    // client cannot update
     if (isClient(req)) return res.status(403).json({ message: "Not allowed" });
 
-    // team member: only if assigned + only status update
     if (isTeam(req)) {
       const myId = userIdFromReq(req);
       if (String(task.assignedTo || "") !== myId) {
@@ -239,7 +237,6 @@ router.patch("/tasks/:id", authMiddleware, async (req, res) => {
         }
       }
     } else {
-      // admin/pm must have manage permission
       if (!canManageTasksForProject(req, project)) return res.status(403).json({ message: "Not allowed" });
     }
 
@@ -260,7 +257,9 @@ router.patch("/tasks/:id", authMiddleware, async (req, res) => {
 });
 
 // =====================================================
-// DELETE TASK (ADMIN + PM ONLY)
+// ✅ DELETE TASK (ADMIN + PM ONLY)
+// URL (with your app.use("/api", taskRoutes)):
+// DELETE /api/tasks/:id
 // =====================================================
 router.delete("/tasks/:id", authMiddleware, async (req, res) => {
   try {
@@ -270,9 +269,7 @@ router.delete("/tasks/:id", authMiddleware, async (req, res) => {
     const project = await Project.findById(task.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
 
-    // team/client cannot delete
     if (isTeam(req) || isClient(req)) return res.status(403).json({ message: "Not allowed" });
-
     if (!canManageTasksForProject(req, project)) return res.status(403).json({ message: "Not allowed" });
 
     await Task.deleteOne({ _id: task._id });
@@ -285,4 +282,3 @@ router.delete("/tasks/:id", authMiddleware, async (req, res) => {
 });
 
 module.exports = router;
-
