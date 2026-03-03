@@ -67,6 +67,39 @@ const buildProjectScope = (req) => {
   return null;
 };
 
+// -------------------- NEW HELPERS (RELEVANT FIX) --------------------
+// Treat both "done" and "completed" as done statuses (fix empty productivity + velocity)
+const DONE_STATUSES = new Set(["done", "completed"]);
+
+// Normalize status safely
+const normStatus = (s) => String(s || "").trim().toLowerCase();
+
+// Extract assignee ids from assignedTo (supports string/ObjectId/object/array)
+const extractAssigneeIds = (assignedTo) => {
+  if (!assignedTo) return [];
+
+  // array: [id] or [{_id}] or [ObjectId]
+  if (Array.isArray(assignedTo)) {
+    return assignedTo
+      .map((a) => {
+        if (!a) return null;
+        if (typeof a === "string") return a;
+        if (a._id) return String(a._id);
+        return String(a); // ObjectId -> string
+      })
+      .filter(Boolean);
+  }
+
+  // object: {_id: ...}
+  if (typeof assignedTo === "object") {
+    if (assignedTo._id) return [String(assignedTo._id)];
+    return [String(assignedTo)];
+  }
+
+  // string
+  return [String(assignedTo)];
+};
+
 // ---------------- controllers ----------------
 exports.getDashboard = async (req, res) => {
   try {
@@ -148,8 +181,8 @@ exports.getDashboard = async (req, res) => {
         velocityMap.get(plannedW).planned += 1;
       }
 
-      const doneW =
-        String(t.status || "").toLowerCase() === "done" && t.updatedAt ? weekKey(t.updatedAt) : null;
+      // ✅ CHANGED: treat done OR completed
+      const doneW = DONE_STATUSES.has(normStatus(t.status)) && t.updatedAt ? weekKey(t.updatedAt) : null;
 
       if (doneW) {
         if (!velocityMap.has(doneW)) velocityMap.set(doneW, { week: doneW, planned: 0, completed: 0 });
@@ -166,12 +199,21 @@ exports.getDashboard = async (req, res) => {
       .map((w, idx) => ({ week: `W${idx + 1}`, planned: w.planned, completed: w.completed }));
 
     // ---------------- TIME DISTRIBUTION (by task.category) ----------------
-
+    // ✅ CHANGED:
+    // - match date for BOTH string date ("YYYY-MM-DD") and Date type
+    // - sum duration robustly: durationSeconds OR durationMinutes OR durationHours
     const timeAgg = await TimeEntry.aggregate([
       {
         $match: {
           projectId: { $in: projectIds },
-          date: { $gte: isoDate(start), $lte: isoDate(end) },
+          $or: [
+            // if date stored as string "YYYY-MM-DD"
+            { date: { $gte: isoDate(start), $lte: isoDate(end) } },
+            // if date stored as Date
+            { date: { $gte: start, $lte: end } },
+            // if you store createdAt instead (common)
+            { createdAt: { $gte: start, $lte: end } },
+          ],
         },
       },
       {
@@ -186,7 +228,26 @@ exports.getDashboard = async (req, res) => {
       {
         $group: {
           _id: { $ifNull: ["$task.category", "Uncategorized"] },
-          seconds: { $sum: "$durationSeconds" },
+          seconds: {
+            $sum: {
+              $ifNull: [
+                "$durationSeconds",
+                {
+                  $cond: [
+                    { $ifNull: ["$durationMinutes", false] },
+                    { $multiply: ["$durationMinutes", 60] },
+                    {
+                      $cond: [
+                        { $ifNull: ["$durationHours", false] },
+                        { $multiply: ["$durationHours", 3600] },
+                        0,
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
         },
       },
       {
@@ -205,14 +266,18 @@ exports.getDashboard = async (req, res) => {
       const perMember = new Map();
 
       for (const t of tasks) {
-        const assignee = t.assignedTo ? String(t.assignedTo) : null;
-        if (!assignee) continue;
+        // ✅ CHANGED: support assignedTo being array/object/string
+        const assignees = extractAssigneeIds(t.assignedTo);
+        if (!assignees.length) continue;
 
-        if (!perMember.has(assignee)) perMember.set(assignee, { userId: assignee, total: 0, done: 0 });
-        const obj = perMember.get(assignee);
+        for (const assignee of assignees) {
+          if (!perMember.has(assignee)) perMember.set(assignee, { userId: assignee, total: 0, done: 0 });
+          const obj = perMember.get(assignee);
 
-        obj.total += 1;
-        if (String(t.status || "").toLowerCase() === "done") obj.done += 1;
+          obj.total += 1;
+          // ✅ CHANGED: treat done OR completed
+          if (DONE_STATUSES.has(normStatus(t.status))) obj.done += 1;
+        }
       }
 
       const memberIds = Array.from(perMember.keys());
@@ -273,7 +338,8 @@ exports.getDashboard = async (req, res) => {
 
     const totalAllocated = budgetByProject.reduce((s, b) => s + (b.allocated || 0), 0);
     const totalSpent = budgetByProject.reduce((s, b) => s + (b.spent || 0), 0);
-    const budgetEfficiencyValue = totalAllocated > 0 ? Math.round(((totalAllocated - totalSpent) / totalAllocated) * 100) : 0;
+    const budgetEfficiencyValue =
+      totalAllocated > 0 ? Math.round(((totalAllocated - totalSpent) / totalAllocated) * 100) : 0;
 
     return res.json({
       scope: role(req),
@@ -326,7 +392,8 @@ exports.exportDashboardPDF = async (req, res) => {
     const allowBudget = isAdmin(req) || isPM(req);
     const totalAllocated = allowBudget ? projects.reduce((s, p) => s + Number(p?.budget?.allocated || 0), 0) : 0;
     const totalSpent = allowBudget ? projects.reduce((s, p) => s + Number(p?.budget?.spent || 0), 0) : 0;
-    const budgetEfficiencyValue = totalAllocated > 0 ? Math.round(((totalAllocated - totalSpent) / totalAllocated) * 100) : 0;
+    const budgetEfficiencyValue =
+      totalAllocated > 0 ? Math.round(((totalAllocated - totalSpent) / totalAllocated) * 100) : 0;
 
     // PDF output
     res.setHeader("Content-Type", "application/pdf");
