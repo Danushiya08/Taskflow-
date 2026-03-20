@@ -14,7 +14,7 @@ const {
 const { protect, authorizeRoles } = require("../middleware/authMiddleware");
 
 router.use(protect);
-router.use(authorizeRoles("admin", "project_manager"));
+router.use(authorizeRoles("admin", "project-manager"));
 
 router.get("/", getRisks);
 router.get("/projects/list", getProjectsForRisk);

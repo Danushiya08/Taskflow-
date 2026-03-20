@@ -44,7 +44,12 @@ interface Risk {
   title: string;
   description: string;
   project: string;
-  projectId?: string;
+  projectId?:
+    | string
+    | {
+        _id: string;
+        name: string;
+      };
   probability: RiskProbability;
   impact: RiskImpact;
   status: RiskStatus;
@@ -130,6 +135,20 @@ export function RiskManagementPage() {
     if (score >= 6) return 'bg-orange-500';
     if (score >= 3) return 'bg-yellow-500';
     return 'bg-green-500';
+  };
+
+  const extractProjectId = (risk: Risk) => {
+    if (!risk.projectId) return '';
+
+    if (typeof risk.projectId === 'string') {
+      return risk.projectId;
+    }
+
+    if (typeof risk.projectId === 'object' && risk.projectId._id) {
+      return risk.projectId._id;
+    }
+
+    return '';
   };
 
   const fetchRisks = async () => {
@@ -279,11 +298,13 @@ export function RiskManagementPage() {
       await fetchProjects();
     }
 
+    const resolvedProjectId = extractProjectId(risk);
+
     setEditingRiskId(risk._id);
     setFormData({
       title: risk.title,
       description: risk.description,
-      projectId: risk.projectId || '',
+      projectId: resolvedProjectId,
       probability: risk.probability,
       impact: risk.impact,
       status: risk.status,

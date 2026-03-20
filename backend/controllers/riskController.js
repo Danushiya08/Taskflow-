@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Risk = require("../models/risk");
 const Project = require("../models/Project");
 
@@ -19,12 +20,30 @@ const getRiskScore = (probability, impact) => {
   return (probabilityScores[probability] || 0) * (impactScores[impact] || 0);
 };
 
+const isAdmin = (user) => user?.role === "admin";
+const isProjectManager = (user) => user?.role === "project-manager";
+
+const getProjectAccessQuery = (userId) => ({
+  archived: false,
+  $or: [
+    { projectManager: userId },
+    { members: userId },
+    { createdBy: userId },
+  ],
+});
+
 // =============================
 // GET PROJECTS FOR RISK DROPDOWN
 // =============================
 exports.getProjectsForRisk = async (req, res) => {
   try {
-    const projects = await Project.find({ archived: false })
+    let query = { archived: false };
+
+    if (isProjectManager(req.user)) {
+      query = getProjectAccessQuery(req.user._id);
+    }
+
+    const projects = await Project.find(query)
       .select("_id name")
       .sort({ name: 1 });
 
@@ -63,10 +82,20 @@ exports.getRisks = async (req, res) => {
     if (probability) query.probability = probability.toLowerCase();
     if (impact) query.impact = impact.toLowerCase();
 
+    if (isProjectManager(req.user)) {
+      const accessibleProjects = await Project.find(
+        getProjectAccessQuery(req.user._id)
+      ).select("_id");
+
+      const projectIds = accessibleProjects.map((p) => p._id);
+      query.projectId = { $in: projectIds };
+    }
+
     const risks = await Risk.find(query)
       .sort({ createdAt: -1 })
       .populate("createdBy", "name email")
-      .populate("updatedBy", "name email");
+      .populate("updatedBy", "name email")
+      .populate("projectId", "_id name");
 
     const risksWithScore = risks.map((risk) => {
       const r = risk.toObject();
@@ -95,13 +124,40 @@ exports.getRiskById = async (req, res) => {
   try {
     const risk = await Risk.findById(req.params.id)
       .populate("createdBy", "name email")
-      .populate("updatedBy", "name email");
+      .populate("updatedBy", "name email")
+      .populate("projectId", "_id name");
 
     if (!risk) {
       return res.status(404).json({
         success: false,
         message: "Risk not found",
       });
+    }
+
+    if (isProjectManager(req.user)) {
+      const riskProjectId =
+        typeof risk.projectId === "object" && risk.projectId?._id
+          ? risk.projectId._id
+          : risk.projectId;
+
+      if (!riskProjectId) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied",
+        });
+      }
+
+      const accessibleProject = await Project.findOne({
+        _id: riskProjectId,
+        ...getProjectAccessQuery(req.user._id),
+      }).select("_id");
+
+      if (!accessibleProject) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied",
+        });
+      }
     }
 
     const r = risk.toObject();
@@ -144,12 +200,41 @@ exports.createRisk = async (req, res) => {
       });
     }
 
-    const selectedProject = await Project.findById(projectId).select("_id name");
+    let incomingProjectId = projectId;
+
+    if (
+      incomingProjectId &&
+      typeof incomingProjectId === "object" &&
+      incomingProjectId._id
+    ) {
+      incomingProjectId = incomingProjectId._id;
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(incomingProjectId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid project ID",
+      });
+    }
+
+    let selectedProject;
+
+    if (isAdmin(req.user)) {
+      selectedProject = await Project.findOne({
+        _id: incomingProjectId,
+        archived: false,
+      }).select("_id name");
+    } else if (isProjectManager(req.user)) {
+      selectedProject = await Project.findOne({
+        _id: incomingProjectId,
+        ...getProjectAccessQuery(req.user._id),
+      }).select("_id name");
+    }
 
     if (!selectedProject) {
       return res.status(404).json({
         success: false,
-        message: "Selected project not found",
+        message: "Selected project not found or not accessible",
       });
     }
 
@@ -170,7 +255,8 @@ exports.createRisk = async (req, res) => {
 
     const createdRisk = await Risk.findById(risk._id)
       .populate("createdBy", "name email")
-      .populate("updatedBy", "name email");
+      .populate("updatedBy", "name email")
+      .populate("projectId", "_id name");
 
     const r = createdRisk.toObject();
     r.riskScore = getRiskScore(r.probability, r.impact);
@@ -203,18 +289,61 @@ exports.updateRisk = async (req, res) => {
       });
     }
 
+    if (isProjectManager(req.user)) {
+      const accessibleProject = await Project.findOne({
+        _id: risk.projectId,
+        ...getProjectAccessQuery(req.user._id),
+      }).select("_id");
+
+      if (!accessibleProject) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied",
+        });
+      }
+    }
+
     const updateData = {
       ...req.body,
       updatedBy: req.user._id,
     };
 
-    if (req.body.projectId) {
-      const selectedProject = await Project.findById(req.body.projectId).select("_id name");
+    if (req.body.projectId !== undefined) {
+      let incomingProjectId = req.body.projectId;
+
+      if (
+        incomingProjectId &&
+        typeof incomingProjectId === "object" &&
+        incomingProjectId._id
+      ) {
+        incomingProjectId = incomingProjectId._id;
+      }
+
+      if (!incomingProjectId || !mongoose.Types.ObjectId.isValid(incomingProjectId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid project ID",
+        });
+      }
+
+      let selectedProject;
+
+      if (isAdmin(req.user)) {
+        selectedProject = await Project.findOne({
+          _id: incomingProjectId,
+          archived: false,
+        }).select("_id name");
+      } else if (isProjectManager(req.user)) {
+        selectedProject = await Project.findOne({
+          _id: incomingProjectId,
+          ...getProjectAccessQuery(req.user._id),
+        }).select("_id name");
+      }
 
       if (!selectedProject) {
         return res.status(404).json({
           success: false,
-          message: "Selected project not found",
+          message: "Selected project not found or not accessible",
         });
       }
 
@@ -227,7 +356,8 @@ exports.updateRisk = async (req, res) => {
       runValidators: true,
     })
       .populate("createdBy", "name email")
-      .populate("updatedBy", "name email");
+      .populate("updatedBy", "name email")
+      .populate("projectId", "_id name");
 
     const r = updated.toObject();
     r.riskScore = getRiskScore(r.probability, r.impact);
@@ -260,6 +390,20 @@ exports.deleteRisk = async (req, res) => {
       });
     }
 
+    if (isProjectManager(req.user)) {
+      const accessibleProject = await Project.findOne({
+        _id: risk.projectId,
+        ...getProjectAccessQuery(req.user._id),
+      }).select("_id");
+
+      if (!accessibleProject) {
+        return res.status(403).json({
+          success: false,
+          message: "Access denied",
+        });
+      }
+    }
+
     await Risk.findByIdAndDelete(req.params.id);
 
     res.status(200).json({
@@ -280,7 +424,18 @@ exports.deleteRisk = async (req, res) => {
 // =============================
 exports.getRiskStats = async (req, res) => {
   try {
-    const risks = await Risk.find();
+    const query = {};
+
+    if (isProjectManager(req.user)) {
+      const accessibleProjects = await Project.find(
+        getProjectAccessQuery(req.user._id)
+      ).select("_id");
+
+      const projectIds = accessibleProjects.map((p) => p._id);
+      query.projectId = { $in: projectIds };
+    }
+
+    const risks = await Risk.find(query);
 
     const stats = {
       total: risks.length,
