@@ -1,5 +1,21 @@
 import type { DateFormatPreference } from "@/hooks/useUserPreferences";
 
+const parseDateSafely = (value: string) => {
+  if (!value) return null;
+
+  // Handle plain YYYY-MM-DD safely without timezone shifting
+  const plainDateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (plainDateMatch) {
+    const [, y, m, d] = plainDateMatch;
+    return new Date(Number(y), Number(m) - 1, Number(d));
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return parsed;
+};
+
 export const formatDateByPreference = (
   value: string | null | undefined,
   dateFormat: DateFormatPreference,
@@ -7,10 +23,10 @@ export const formatDateByPreference = (
 ) => {
   if (!value) return "";
 
-  if (timezone) {
-    const d = new Date(`${value}T00:00:00`);
-    if (Number.isNaN(d.getTime())) return String(value);
+  const d = parseDateSafely(value);
+  if (!d) return String(value);
 
+  if (timezone) {
     const formatter =
       dateFormat === "dmy"
         ? new Intl.DateTimeFormat("en-GB", {
@@ -36,9 +52,6 @@ export const formatDateByPreference = (
     return formatter.format(d);
   }
 
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const year = d.getFullYear();
@@ -55,14 +68,26 @@ export const formatTimeWithTimezone = (
 ) => {
   if (!time) return "";
 
-  const iso = `${date}T${time}:00`;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return time;
+  const safeDate = parseDateSafely(date);
+  if (!safeDate) return time;
+
+  const [hours = "0", minutes = "0"] = time.split(":");
+
+  const combined = new Date(
+    safeDate.getFullYear(),
+    safeDate.getMonth(),
+    safeDate.getDate(),
+    Number(hours),
+    Number(minutes),
+    0
+  );
+
+  if (Number.isNaN(combined.getTime())) return time;
 
   return new Intl.DateTimeFormat("en-US", {
     timeZone: timezone,
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
-  }).format(d);
+  }).format(combined);
 };

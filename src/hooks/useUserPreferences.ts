@@ -3,12 +3,14 @@ import api from "@/lib/api";
 
 export type DateFormatPreference = "mdy" | "dmy" | "ymd";
 export type ThemePreference = "light" | "dark" | "auto";
+export type CurrencyPreference = "USD" | "GBP" | "LKR" | "EUR";
 
 export type UserPreferences = {
   language: string;
   timezone: string;
   dateFormat: DateFormatPreference;
   theme: ThemePreference;
+  currency: CurrencyPreference;
   defaultProjectView: string;
   compactMode: boolean;
   showCompletedTasks: boolean;
@@ -19,6 +21,7 @@ const DEFAULT_PREFERENCES: UserPreferences = {
   timezone: "gmt",
   dateFormat: "mdy",
   theme: "light",
+  currency: "USD",
   defaultProjectView: "kanban",
   compactMode: false,
   showCompletedTasks: true,
@@ -40,6 +43,7 @@ export function useUserPreferences() {
         timezone: prefs.timezone || "gmt",
         dateFormat: (prefs.dateFormat as DateFormatPreference) || "mdy",
         theme: (prefs.theme as ThemePreference) || "light",
+        currency: (prefs.currency as CurrencyPreference) || "USD",
         defaultProjectView: prefs.defaultProjectView || "kanban",
         compactMode: prefs.compactMode ?? false,
         showCompletedTasks: prefs.showCompletedTasks ?? true,

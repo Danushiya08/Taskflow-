@@ -4,7 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, TrendingUp, TrendingDown, BarChart3, Calendar, Users, DollarSign } from "lucide-react";
+import {
+  Download,
+  TrendingUp,
+  TrendingDown,
+  BarChart3,
+  Calendar,
+  Users,
+  DollarSign,
+} from "lucide-react";
 import {
   AreaChart,
   Area,
@@ -21,6 +29,16 @@ import {
 } from "recharts";
 import { formatCurrency } from "@/lib/currency";
 import { useUserPreferences } from "@/hooks/useUserPreferences";
+import {
+  getPagePaddingClass,
+  getCardPaddingClass,
+  getGridGapClass,
+  getTitleClass,
+  getCardTitleClass,
+  getButtonSizeClass,
+  getInputSizeClass,
+  getIconSizeClass,
+} from "@/lib/uiDensity";
 
 function useAuthFromStorage() {
   try {
@@ -125,14 +143,17 @@ export function ReportsPage() {
     }
   };
 
-  const pagePadding = compactMode ? "p-4" : "p-6";
-  const sectionSpacing = compactMode ? "space-y-4" : "space-y-6";
-  const gridGap = compactMode ? "gap-3" : "gap-4";
-  const chartGridGap = compactMode ? "gap-4" : "gap-6";
+  const pageClass = `${getPagePaddingClass(compactMode)} bg-background text-foreground`;
+  const gridGapClass = getGridGapClass(compactMode);
+  const chartGridGapClass = getGridGapClass(compactMode);
+  const cardTopPaddingClass = getCardPaddingClass(compactMode);
+  const titleClass = getTitleClass(compactMode);
+  const cardTitleClass = getCardTitleClass(compactMode);
+  const buttonSizeClass = getButtonSizeClass(compactMode);
+  const inputSizeClass = getInputSizeClass(compactMode);
+  const metricIconClass = getIconSizeClass(compactMode);
+
   const cardHeaderPadding = compactMode ? "pb-2" : "pb-4";
-  const cardTopPadding = compactMode ? "pt-4" : "pt-6";
-  const titleClass = compactMode ? "text-2xl font-semibold mb-1" : "text-3xl font-semibold mb-2";
-  const cardTitleClass = compactMode ? "text-base" : "text-lg";
   const chartHeight = compactMode ? 240 : 300;
   const pieChartHeight = compactMode ? 240 : 300;
   const pieChartWidth = compactMode ? "100%" : "40%";
@@ -142,13 +163,13 @@ export function ReportsPage() {
 
   if (!canSeeReports) {
     return (
-      <div className={`${pagePadding} bg-background text-foreground`}>
+      <div className={pageClass}>
         <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={cardHeaderPadding}>
             <CardTitle className={cardTitleClass}>Reports & Analytics</CardTitle>
             <CardDescription>Access restricted</CardDescription>
           </CardHeader>
-          <CardContent className={`text-muted-foreground ${cardTopPadding}`}>
+          <CardContent className={`text-muted-foreground ${cardTopPaddingClass}`}>
             Team Members don’t have access to the Reports & Analytics dashboard.
           </CardContent>
         </Card>
@@ -164,7 +185,7 @@ export function ReportsPage() {
     (data?.charts?.budgetByProject?.length || 0) > 0;
 
   return (
-    <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
+    <div className={pageClass}>
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className={titleClass}>Reports & Analytics</h1>
@@ -178,7 +199,7 @@ export function ReportsPage() {
 
         <div className="flex items-center gap-3">
           <Select value={range} onValueChange={setRange}>
-            <SelectTrigger className={compactMode ? "w-44 h-9" : "w-48"}>
+            <SelectTrigger className={`w-48 ${inputSizeClass}`}>
               <Calendar className="w-4 h-4 mr-2" />
               <SelectValue />
             </SelectTrigger>
@@ -190,7 +211,7 @@ export function ReportsPage() {
             </SelectContent>
           </Select>
 
-          <Button onClick={exportPDF} disabled={loading || exporting} className={compactMode ? "h-9 px-3" : ""}>
+          <Button onClick={exportPDF} disabled={loading || exporting} className={buttonSizeClass}>
             <Download className="w-4 h-4 mr-2" />
             {exporting ? "Exporting..." : "Export Report"}
           </Button>
@@ -199,17 +220,17 @@ export function ReportsPage() {
 
       {err ? (
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className={`${cardTopPadding} text-destructive`}>{err}</CardContent>
+          <CardContent className={`${cardTopPaddingClass} text-destructive`}>{err}</CardContent>
         </Card>
       ) : null}
 
       {loading ? (
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className={`${cardTopPadding} text-muted-foreground`}>Loading dashboard...</CardContent>
+          <CardContent className={`${cardTopPaddingClass} text-muted-foreground`}>Loading dashboard...</CardContent>
         </Card>
       ) : !data ? (
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className={`${cardTopPadding} text-muted-foreground`}>No data available.</CardContent>
+          <CardContent className={`${cardTopPaddingClass} text-muted-foreground`}>No data available.</CardContent>
         </Card>
       ) : !hasAnyChartData ? (
         <Card className="border-border bg-card text-card-foreground">
@@ -223,9 +244,9 @@ export function ReportsPage() {
         </Card>
       ) : (
         <>
-          <div className={`grid grid-cols-1 md:grid-cols-4 ${gridGap}`}>
+          <div className={`grid grid-cols-1 md:grid-cols-4 ${gridGapClass}`}>
             <Card className="border-border bg-card text-card-foreground">
-              <CardContent className={cardTopPadding}>
+              <CardContent className={cardTopPaddingClass}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Projects Completed</p>
@@ -238,13 +259,13 @@ export function ReportsPage() {
                       {data.kpis.projectsCompleted.deltaPct}% vs previous period
                     </p>
                   </div>
-                  <BarChart3 className={compactMode ? "w-7 h-7 text-blue-600" : "w-8 h-8 text-blue-600"} />
+                  <BarChart3 className={`${metricIconClass} text-blue-600`} />
                 </div>
               </CardContent>
             </Card>
 
             <Card className="border-border bg-card text-card-foreground">
-              <CardContent className={cardTopPadding}>
+              <CardContent className={cardTopPaddingClass}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Avg. Task Velocity</p>
@@ -256,13 +277,13 @@ export function ReportsPage() {
                       Completed tasks/week
                     </p>
                   </div>
-                  <TrendingUp className={compactMode ? "w-7 h-7 text-green-600" : "w-8 h-8 text-green-600"} />
+                  <TrendingUp className={`${metricIconClass} text-green-600`} />
                 </div>
               </CardContent>
             </Card>
 
             <Card className={`border-border bg-card text-card-foreground ${isClient ? "opacity-60" : ""}`}>
-              <CardContent className={cardTopPadding}>
+              <CardContent className={cardTopPaddingClass}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Team Productivity</p>
@@ -274,13 +295,13 @@ export function ReportsPage() {
                       {isClient ? "Not visible for clients" : data.kpis.teamProductivity.status}
                     </p>
                   </div>
-                  <Users className={compactMode ? "w-7 h-7 text-purple-600" : "w-8 h-8 text-purple-600"} />
+                  <Users className={`${metricIconClass} text-purple-600`} />
                 </div>
               </CardContent>
             </Card>
 
             <Card className={`border-border bg-card text-card-foreground ${isClient ? "opacity-60" : ""}`}>
-              <CardContent className={cardTopPadding}>
+              <CardContent className={cardTopPaddingClass}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">Budget Efficiency</p>
@@ -292,21 +313,21 @@ export function ReportsPage() {
                       {isClient ? "Not visible for clients" : data.kpis.budgetEfficiency.status}
                     </p>
                   </div>
-                  <DollarSign className={compactMode ? "w-7 h-7 text-yellow-600" : "w-8 h-8 text-yellow-600"} />
+                  <DollarSign className={`${metricIconClass} text-yellow-600`} />
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          <Tabs defaultValue="projects" className={sectionSpacing}>
-            <TabsList className={compactMode ? "h-9" : ""}>
+          <Tabs defaultValue="projects" className="space-y-4">
+            <TabsList className={compactMode ? "h-9" : "h-10"}>
               <TabsTrigger value="projects">Project Performance</TabsTrigger>
               {!isClient ? <TabsTrigger value="team">Team Analytics</TabsTrigger> : null}
               {isAdminOrPM ? <TabsTrigger value="budget">Budget & Resources</TabsTrigger> : null}
             </TabsList>
 
-            <TabsContent value="projects" className={sectionSpacing}>
-              <div className={`grid grid-cols-1 lg:grid-cols-2 ${chartGridGap}`}>
+            <TabsContent value="projects" className="space-y-4">
+              <div className={`grid grid-cols-1 lg:grid-cols-2 ${chartGridGapClass}`}>
                 <Card className="border-border bg-card text-card-foreground">
                   <CardHeader className={cardHeaderPadding}>
                     <CardTitle className={cardTitleClass}>Project Completion Trend</CardTitle>
@@ -375,7 +396,10 @@ export function ReportsPage() {
                         {timeDistribution.map((item: any) => (
                           <div key={item.category} className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <div className={compactMode ? "w-3 h-3 rounded" : "w-4 h-4 rounded"} style={{ backgroundColor: item.color }} />
+                              <div
+                                className={compactMode ? "w-3 h-3 rounded" : "w-4 h-4 rounded"}
+                                style={{ backgroundColor: item.color }}
+                              />
                               <span className="text-card-foreground">{item.category}</span>
                             </div>
                             <span className="text-muted-foreground">{item.hours} hours</span>
@@ -389,7 +413,7 @@ export function ReportsPage() {
             </TabsContent>
 
             {!isClient ? (
-              <TabsContent value="team" className={sectionSpacing}>
+              <TabsContent value="team" className="space-y-4">
                 <Card className="border-border bg-card text-card-foreground">
                   <CardHeader className={cardHeaderPadding}>
                     <CardTitle className={cardTitleClass}>Team Productivity Scores</CardTitle>
@@ -411,7 +435,7 @@ export function ReportsPage() {
             ) : null}
 
             {isAdminOrPM ? (
-              <TabsContent value="budget" className={sectionSpacing}>
+              <TabsContent value="budget" className="space-y-4">
                 <Card className="border-border bg-card text-card-foreground">
                   <CardHeader className={cardHeaderPadding}>
                     <CardTitle className={cardTitleClass}>Budget Allocation & Usage</CardTitle>
@@ -424,7 +448,8 @@ export function ReportsPage() {
                           <div className="flex items-center justify-between">
                             <span className="text-card-foreground">{project.project}</span>
                             <span className="text-sm text-muted-foreground">
-                              {formatCurrency(project.spent)} / {formatCurrency(project.allocated)}
+                              {formatCurrency(project.spent, preferences.currency)} /{" "}
+                              {formatCurrency(project.allocated, preferences.currency)}
                             </span>
                           </div>
 
@@ -443,7 +468,13 @@ export function ReportsPage() {
 
                           <div className="flex items-center justify-between text-xs text-muted-foreground">
                             <span>{project.percentage}% spent</span>
-                            <span>{formatCurrency(project.allocated - project.spent)} remaining</span>
+                            <span>
+                              {formatCurrency(
+                                project.allocated - project.spent,
+                                preferences.currency
+                              )}{" "}
+                              remaining
+                            </span>
                           </div>
                         </div>
                       ))}

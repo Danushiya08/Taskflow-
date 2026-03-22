@@ -30,6 +30,13 @@ import { ProjectAssistant } from "@/components/ProjectAssistant";
 import type { Project, Task } from "@/components/ProjectAssistant";
 import { useUserPreferences } from "@/hooks/useUserPreferences";
 import { formatDateByPreference } from "@/lib/dateFormat";
+import {
+  getPagePaddingClass,
+  getCardPaddingClass,
+  getGridGapClass,
+  getTitleClass,
+  getCardTitleClass,
+} from "@/lib/uiDensity";
 
 type BackendProject = {
   _id: string;
@@ -127,12 +134,14 @@ export function Dashboard() {
         name: p.name,
         progress: Math.max(0, Math.min(100, Number(p.progress ?? 0))),
         status: toHealthStatus(p),
-        dueDate: p.dueDate ? formatDateByPreference(p.dueDate, preferences.dateFormat) : undefined,
+        dueDate: p.dueDate
+          ? formatDateByPreference(p.dueDate, preferences.dateFormat, preferences.timezone)
+          : undefined,
         tasks: { total, completed },
         teamCount: Array.isArray(p.members) ? p.members.length : 0,
       };
     });
-  }, [projectsRaw, tasksRaw, preferences.dateFormat]);
+  }, [projectsRaw, tasksRaw, preferences.dateFormat, preferences.timezone]);
 
   const allTasks: Task[] = useMemo(() => {
     return tasksRaw.map((t) => {
@@ -147,11 +156,13 @@ export function Dashboard() {
         project: projectName,
         priority: t.priority,
         status: mapTaskStatus(t.status),
-        dueDate: t.dueDate ? formatDateByPreference(t.dueDate, preferences.dateFormat) : undefined,
+        dueDate: t.dueDate
+          ? formatDateByPreference(t.dueDate, preferences.dateFormat, preferences.timezone)
+          : undefined,
         progress,
       };
     });
-  }, [tasksRaw, projectsRaw, preferences.dateFormat]);
+  }, [tasksRaw, projectsRaw, preferences.dateFormat, preferences.timezone]);
 
   const productivityData = useMemo(() => {
     const todo = allTasks.filter((t) => t.status === "pending").length;
@@ -179,14 +190,14 @@ export function Dashboard() {
 
   const teamMembers: any[] = [];
 
-  const pagePadding = compactMode ? "p-4" : "p-6";
-  const sectionSpacing = compactMode ? "space-y-4" : "space-y-6";
-  const gridGap = compactMode ? "gap-4" : "gap-6";
+  const pageClass = `${getPagePaddingClass(compactMode)} bg-background text-foreground`;
+  const gridGapClass = getGridGapClass(compactMode);
+  const cardTopPaddingClass = getCardPaddingClass(compactMode);
+  const titleClass = getTitleClass(compactMode);
+  const cardTitleClass = getCardTitleClass(compactMode);
+
   const cardHeaderPadding = compactMode ? "pb-2" : "pb-4";
-  const cardTopPadding = compactMode ? "pt-4" : "pt-6";
-  const titleClass = compactMode ? "text-2xl font-semibold mb-1" : "text-3xl font-semibold mb-2";
   const subtitleClass = compactMode ? "text-sm text-muted-foreground" : "text-muted-foreground";
-  const cardTitleClass = compactMode ? "text-base" : "text-lg";
   const metricValueClass = compactMode ? "text-xl font-semibold" : "text-2xl font-semibold";
   const chartHeight = compactMode ? 220 : 250;
   const pieOuterRadius = compactMode ? 68 : 80;
@@ -198,8 +209,8 @@ export function Dashboard() {
 
   if (loading || loadingPreferences) {
     return (
-      <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
-        <h1 className={compactMode ? "text-2xl font-semibold" : "text-3xl font-semibold"}>Dashboard</h1>
+      <div className={pageClass}>
+        <h1 className={titleClass}>Dashboard</h1>
         <p className={subtitleClass}>Loading live project data...</p>
       </div>
     );
@@ -207,8 +218,8 @@ export function Dashboard() {
 
   if (errMsg) {
     return (
-      <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
-        <h1 className={compactMode ? "text-2xl font-semibold" : "text-3xl font-semibold"}>Dashboard</h1>
+      <div className={pageClass}>
+        <h1 className={titleClass}>Dashboard</h1>
         <div className="p-4 rounded border border-destructive/30 bg-destructive/10 text-destructive">
           {errMsg}
         </div>
@@ -221,19 +232,19 @@ export function Dashboard() {
   const doneTasks = allTasks.filter((t) => t.status === "completed").length;
 
   return (
-    <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
+    <div className={pageClass}>
       <div>
         <h1 className={titleClass}>Dashboard</h1>
         <p className={subtitleClass}>Live system overview (projects + tasks)</p>
       </div>
 
-      <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 ${gridGap}`}>
+      <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 ${gridGapClass}`}>
         <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Active Projects</CardTitle>
             <FolderKanban className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className={cardTopPadding}>
+          <CardContent className={cardTopPaddingClass}>
             <div className={metricValueClass}>{totalProjects}</div>
             <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
               <TrendingUp className="w-3 h-3 text-green-600" />
@@ -247,7 +258,7 @@ export function Dashboard() {
             <CardTitle className="text-sm">Tasks Completed</CardTitle>
             <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className={cardTopPadding}>
+          <CardContent className={cardTopPaddingClass}>
             <div className={metricValueClass}>{doneTasks}</div>
             <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
               <TrendingUp className="w-3 h-3 text-green-600" />
@@ -261,7 +272,7 @@ export function Dashboard() {
             <CardTitle className="text-sm">Team Members</CardTitle>
             <Users className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className={cardTopPadding}>
+          <CardContent className={cardTopPaddingClass}>
             <div className={metricValueClass}>—</div>
             <p className="text-xs text-muted-foreground mt-1">Connect later to /team</p>
           </CardContent>
@@ -272,7 +283,7 @@ export function Dashboard() {
             <CardTitle className="text-sm">Avg. Completion Time</CardTitle>
             <Clock className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className={cardTopPadding}>
+          <CardContent className={cardTopPaddingClass}>
             <div className={metricValueClass}>—</div>
             <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
               <TrendingDown className="w-3 h-3 text-green-600" />
@@ -291,7 +302,7 @@ export function Dashboard() {
         subtitle="Prioritization, risks, and schedule signals (Admin view)"
       />
 
-      <div className={`grid grid-cols-1 lg:grid-cols-2 ${gridGap}`}>
+      <div className={`grid grid-cols-1 lg:grid-cols-2 ${gridGapClass}`}>
         <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={cardHeaderPadding}>
             <CardTitle className={cardTitleClass}>Tasks Overview</CardTitle>

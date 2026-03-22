@@ -17,9 +17,19 @@ import {
   Mail,
   Smartphone,
   Save,
+  DollarSign,
 } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import { useUserPreferences } from "@/hooks/useUserPreferences";
+import {
+  getPagePaddingClass,
+  getGridGapClass,
+  getTitleClass,
+  getCardTitleClass,
+  getButtonSizeClass,
+  getInputSizeClass,
+} from "@/lib/uiDensity";
 
 type ProfileState = {
   name: string;
@@ -48,6 +58,7 @@ type PreferencesState = {
   timezone: string;
   dateFormat: string;
   theme: string;
+  currency: string;
   defaultProjectView: string;
   compactMode: boolean;
   showCompletedTasks: boolean;
@@ -118,6 +129,7 @@ export function SettingsPage() {
     timezone: "gmt",
     dateFormat: "mdy",
     theme: "light",
+    currency: "USD",
     defaultProjectView: "kanban",
     compactMode: false,
     showCompletedTasks: true,
@@ -132,6 +144,26 @@ export function SettingsPage() {
     newPassword: "",
     confirmPassword: "",
   });
+
+  const { preferences: userPrefs, loadingPreferences } = useUserPreferences();
+  const compactMode = userPrefs.compactMode;
+
+  const pageClass = `${getPagePaddingClass(compactMode)} bg-background text-foreground`;
+  const titleClass = getTitleClass(compactMode);
+  const gridGapClass = getGridGapClass(compactMode);
+  const cardTitleClass = getCardTitleClass(compactMode);
+  const buttonSizeClass = getButtonSizeClass(compactMode);
+  const inputSizeClass = getInputSizeClass(compactMode);
+
+  const subtitleClass = compactMode ? "text-sm text-muted-foreground" : "text-muted-foreground";
+  const cardContentSpacing = compactMode ? "space-y-4" : "space-y-6";
+  const compactCardSpacing = compactMode ? "space-y-3" : "space-y-4";
+  const profileRowGap = compactMode ? "gap-4" : "gap-6";
+  const headerGap = compactMode ? "space-y-4" : "space-y-6";
+  const tabListHeight = compactMode ? "h-9" : "h-10";
+  const avatarSize = compactMode ? "w-20 h-20" : "w-24 h-24";
+  const sectionTitleMargin = compactMode ? "mb-3" : "mb-4";
+  const sessionPadding = compactMode ? "p-2.5" : "p-3";
 
   useEffect(() => {
     fetchSettings();
@@ -169,6 +201,7 @@ export function SettingsPage() {
         timezone: data?.preferences?.timezone || "gmt",
         dateFormat: data?.preferences?.dateFormat || "mdy",
         theme: data?.preferences?.theme || "light",
+        currency: data?.preferences?.currency || "USD",
         defaultProjectView: data?.preferences?.defaultProjectView || "kanban",
         compactMode: data?.preferences?.compactMode ?? false,
         showCompletedTasks: data?.preferences?.showCompletedTasks ?? true,
@@ -306,29 +339,29 @@ export function SettingsPage() {
   const displayRole = profile.role
     ? profile.role
         .split("-")
-        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" ")
     : "User";
 
   const avatarSeed = displayName || "TaskFlow";
 
-  if (loading) {
+  if (loading || loadingPreferences) {
     return (
-      <div className="p-6 bg-background text-foreground">
+      <div className={pageClass}>
         <div className="text-muted-foreground">Loading settings...</div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6 bg-background text-foreground">
+    <div className={pageClass}>
       <div>
-        <h1 className="text-3xl font-semibold mb-2">Settings</h1>
-        <p className="text-muted-foreground">Manage your account settings and preferences</p>
+        <h1 className={titleClass}>Settings</h1>
+        <p className={subtitleClass}>Manage your account settings and preferences</p>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList>
+      <Tabs defaultValue="profile" className={headerGap}>
+        <TabsList className={tabListHeight}>
           <TabsTrigger value="profile">
             <User className="w-4 h-4 mr-2" />
             Profile
@@ -350,11 +383,11 @@ export function SettingsPage() {
         <TabsContent value="profile">
           <Card className="border-border bg-card text-card-foreground">
             <CardHeader>
-              <CardTitle>Profile Information</CardTitle>
+              <CardTitle className={cardTitleClass}>Profile Information</CardTitle>
               <CardDescription>Update your personal information and profile details</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center gap-6">
+            <CardContent className={cardContentSpacing}>
+              <div className={`flex items-center ${profileRowGap}`}>
                 <div className="relative">
                   <img
                     src={
@@ -362,12 +395,12 @@ export function SettingsPage() {
                       `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(avatarSeed)}`
                     }
                     alt="Profile"
-                    className="w-24 h-24 rounded-full"
+                    className={`${avatarSize} rounded-full`}
                   />
                   <Button
                     size="sm"
                     type="button"
-                    className="absolute bottom-0 right-0 rounded-full"
+                    className={`absolute bottom-0 right-0 rounded-full ${buttonSizeClass}`}
                     onClick={() => toast.info("You can connect avatar upload later if needed")}
                   >
                     Change
@@ -381,13 +414,14 @@ export function SettingsPage() {
 
               <Separator />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className={`grid grid-cols-1 md:grid-cols-2 ${gridGapClass}`}>
                 <div className="space-y-2">
                   <Label htmlFor="first-name">First Name</Label>
                   <Input
                     id="first-name"
                     value={profile.firstName}
                     onChange={(e) => setProfile({ ...profile, firstName: e.target.value })}
+                    className={inputSizeClass}
                   />
                 </div>
 
@@ -397,6 +431,7 @@ export function SettingsPage() {
                     id="last-name"
                     value={profile.lastName}
                     onChange={(e) => setProfile({ ...profile, lastName: e.target.value })}
+                    className={inputSizeClass}
                   />
                 </div>
               </div>
@@ -408,6 +443,7 @@ export function SettingsPage() {
                   type="email"
                   value={profile.email}
                   onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+                  className={inputSizeClass}
                 />
               </div>
 
@@ -418,6 +454,7 @@ export function SettingsPage() {
                   type="tel"
                   value={profile.phone}
                   onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                  className={inputSizeClass}
                 />
               </div>
 
@@ -427,6 +464,7 @@ export function SettingsPage() {
                   id="job-title"
                   value={profile.jobTitle}
                   onChange={(e) => setProfile({ ...profile, jobTitle: e.target.value })}
+                  className={inputSizeClass}
                 />
               </div>
 
@@ -436,7 +474,7 @@ export function SettingsPage() {
                   value={profile.department || ""}
                   onValueChange={(value) => setProfile({ ...profile, department: value })}
                 >
-                  <SelectTrigger id="department">
+                  <SelectTrigger id="department" className={inputSizeClass}>
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
@@ -455,11 +493,12 @@ export function SettingsPage() {
                   id="bio"
                   value={profile.bio}
                   onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
+                  className={inputSizeClass}
                 />
               </div>
 
               <div className="flex justify-end">
-                <Button onClick={handleSaveProfile} disabled={savingProfile}>
+                <Button onClick={handleSaveProfile} disabled={savingProfile} className={buttonSizeClass}>
                   <Save className="w-4 h-4 mr-2" />
                   {savingProfile ? "Saving..." : "Save Changes"}
                 </Button>
@@ -471,13 +510,15 @@ export function SettingsPage() {
         <TabsContent value="notifications">
           <Card className="border-border bg-card text-card-foreground">
             <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
+              <CardTitle className={cardTitleClass}>Notification Preferences</CardTitle>
               <CardDescription>Configure how and when you receive notifications</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className={cardContentSpacing}>
               <div>
-                <h4 className="text-sm font-medium text-card-foreground mb-4">Notification Channels</h4>
-                <div className="space-y-4">
+                <h4 className={`text-sm font-medium text-card-foreground ${sectionTitleMargin}`}>
+                  Notification Channels
+                </h4>
+                <div className={compactCardSpacing}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Mail className="w-5 h-5 text-muted-foreground" />
@@ -521,8 +562,10 @@ export function SettingsPage() {
               <Separator />
 
               <div>
-                <h4 className="text-sm font-medium text-card-foreground mb-4">Notification Types</h4>
-                <div className="space-y-4">
+                <h4 className={`text-sm font-medium text-card-foreground ${sectionTitleMargin}`}>
+                  Notification Types
+                </h4>
+                <div className={compactCardSpacing}>
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-card-foreground">Task Updates</p>
@@ -590,7 +633,7 @@ export function SettingsPage() {
               </div>
 
               <div className="flex justify-end">
-                <Button onClick={handleSaveNotifications} disabled={savingNotifications}>
+                <Button onClick={handleSaveNotifications} disabled={savingNotifications} className={buttonSizeClass}>
                   <Save className="w-4 h-4 mr-2" />
                   {savingNotifications ? "Saving..." : "Save Preferences"}
                 </Button>
@@ -600,13 +643,13 @@ export function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="security">
-          <div className="space-y-6">
+          <div className={cardContentSpacing}>
             <Card className="border-border bg-card text-card-foreground">
               <CardHeader>
-                <CardTitle>Password</CardTitle>
+                <CardTitle className={cardTitleClass}>Password</CardTitle>
                 <CardDescription>Update your password to keep your account secure</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className={compactCardSpacing}>
                 <div className="space-y-2">
                   <Label htmlFor="current-password">Current Password</Label>
                   <Input
@@ -619,6 +662,7 @@ export function SettingsPage() {
                         currentPassword: e.target.value,
                       })
                     }
+                    className={inputSizeClass}
                   />
                 </div>
 
@@ -634,6 +678,7 @@ export function SettingsPage() {
                         newPassword: e.target.value,
                       })
                     }
+                    className={inputSizeClass}
                   />
                 </div>
 
@@ -649,11 +694,12 @@ export function SettingsPage() {
                         confirmPassword: e.target.value,
                       })
                     }
+                    className={inputSizeClass}
                   />
                 </div>
 
                 <div className="flex justify-end">
-                  <Button onClick={handleSaveSecurity} disabled={savingPassword}>
+                  <Button onClick={handleSaveSecurity} disabled={savingPassword} className={buttonSizeClass}>
                     <Save className="w-4 h-4 mr-2" />
                     {savingPassword ? "Updating..." : "Update Password"}
                   </Button>
@@ -663,10 +709,10 @@ export function SettingsPage() {
 
             <Card className="border-border bg-card text-card-foreground">
               <CardHeader>
-                <CardTitle>Two-Factor Authentication</CardTitle>
+                <CardTitle className={cardTitleClass}>Two-Factor Authentication</CardTitle>
                 <CardDescription>Add an extra layer of security to your account</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className={compactCardSpacing}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <Shield className="w-5 h-5 text-muted-foreground" />
@@ -683,6 +729,7 @@ export function SettingsPage() {
                     variant="outline"
                     onClick={handleToggle2FA}
                     disabled={saving2FA}
+                    className={buttonSizeClass}
                   >
                     {saving2FA
                       ? "Saving..."
@@ -696,12 +743,12 @@ export function SettingsPage() {
 
             <Card className="border-border bg-card text-card-foreground">
               <CardHeader>
-                <CardTitle>Active Sessions</CardTitle>
+                <CardTitle className={cardTitleClass}>Active Sessions</CardTitle>
                 <CardDescription>Manage your active login sessions</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 border border-border rounded-lg bg-card">
+              <CardContent className={compactCardSpacing}>
+                <div className={compactCardSpacing}>
+                  <div className={`flex items-center justify-between ${sessionPadding} border border-border rounded-lg bg-card`}>
                     <div className="flex items-center gap-3">
                       <Smartphone className="w-5 h-5 text-muted-foreground" />
                       <div>
@@ -709,12 +756,12 @@ export function SettingsPage() {
                         <p className="text-xs text-muted-foreground">Current session • Colombo, Sri Lanka</p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm" disabled>
+                    <Button variant="ghost" size="sm" disabled className={buttonSizeClass}>
                       Active
                     </Button>
                   </div>
 
-                  <div className="flex items-center justify-between p-3 border border-border rounded-lg bg-card">
+                  <div className={`flex items-center justify-between ${sessionPadding} border border-border rounded-lg bg-card`}>
                     <div className="flex items-center gap-3">
                       <Smartphone className="w-5 h-5 text-muted-foreground" />
                       <div>
@@ -725,6 +772,7 @@ export function SettingsPage() {
                     <Button
                       variant="outline"
                       size="sm"
+                      className={buttonSizeClass}
                       onClick={() => toast.info("Session revoke can be connected later")}
                     >
                       Revoke
@@ -739,10 +787,10 @@ export function SettingsPage() {
         <TabsContent value="preferences">
           <Card className="border-border bg-card text-card-foreground">
             <CardHeader>
-              <CardTitle>Application Preferences</CardTitle>
+              <CardTitle className={cardTitleClass}>Application Preferences</CardTitle>
               <CardDescription>Customize your TaskFlow experience</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className={cardContentSpacing}>
               <div className="space-y-2">
                 <Label htmlFor="language">Language</Label>
                 <Select
@@ -751,7 +799,7 @@ export function SettingsPage() {
                     setPreferences({ ...preferences, language: value })
                   }
                 >
-                  <SelectTrigger id="language">
+                  <SelectTrigger id="language" className={inputSizeClass}>
                     <Globe className="w-4 h-4 mr-2" />
                     <SelectValue />
                   </SelectTrigger>
@@ -773,15 +821,17 @@ export function SettingsPage() {
                     setPreferences({ ...preferences, timezone: value })
                   }
                 >
-                  <SelectTrigger id="timezone">
+                  <SelectTrigger id="timezone" className={inputSizeClass}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="est">Eastern Time (ET)</SelectItem>
-                    <SelectItem value="pst">Pacific Time (PT)</SelectItem>
-                    <SelectItem value="cst">Central Time (CT)</SelectItem>
                     <SelectItem value="gmt">GMT</SelectItem>
-                    <SelectItem value="ist">India Standard Time (IST)</SelectItem>
+                    <SelectItem value="UTC">UTC</SelectItem>
+                    <SelectItem value="Asia/Colombo">Asia/Colombo</SelectItem>
+                    <SelectItem value="Asia/Kolkata">Asia/Kolkata</SelectItem>
+                    <SelectItem value="Europe/London">Europe/London</SelectItem>
+                    <SelectItem value="America/New_York">America/New_York</SelectItem>
+                    <SelectItem value="America/Los_Angeles">America/Los_Angeles</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -794,7 +844,7 @@ export function SettingsPage() {
                     setPreferences({ ...preferences, dateFormat: value })
                   }
                 >
-                  <SelectTrigger id="date-format">
+                  <SelectTrigger id="date-format" className={inputSizeClass}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -813,7 +863,7 @@ export function SettingsPage() {
                     setPreferences({ ...preferences, theme: value })
                   }
                 >
-                  <SelectTrigger id="theme">
+                  <SelectTrigger id="theme" className={inputSizeClass}>
                     <Palette className="w-4 h-4 mr-2" />
                     <SelectValue />
                   </SelectTrigger>
@@ -826,6 +876,27 @@ export function SettingsPage() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="currency">Currency</Label>
+                <Select
+                  value={preferences.currency}
+                  onValueChange={(value) =>
+                    setPreferences({ ...preferences, currency: value })
+                  }
+                >
+                  <SelectTrigger id="currency" className={inputSizeClass}>
+                    <DollarSign className="w-4 h-4 mr-2" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USD">USD - US Dollar</SelectItem>
+                    <SelectItem value="GBP">GBP - British Pound</SelectItem>
+                    <SelectItem value="LKR">LKR - Sri Lankan Rupee</SelectItem>
+                    <SelectItem value="EUR">EUR - Euro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="default-view">Default Project View</Label>
                 <Select
                   value={preferences.defaultProjectView}
@@ -833,7 +904,7 @@ export function SettingsPage() {
                     setPreferences({ ...preferences, defaultProjectView: value })
                   }
                 >
-                  <SelectTrigger id="default-view">
+                  <SelectTrigger id="default-view" className={inputSizeClass}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -847,7 +918,7 @@ export function SettingsPage() {
 
               <Separator />
 
-              <div className="space-y-4">
+              <div className={compactCardSpacing}>
                 <h4 className="text-sm font-medium text-card-foreground">Display Options</h4>
 
                 <div className="flex items-center justify-between">
@@ -881,7 +952,7 @@ export function SettingsPage() {
               </div>
 
               <div className="flex justify-end">
-                <Button onClick={handleSavePreferences} disabled={savingPreferences}>
+                <Button onClick={handleSavePreferences} disabled={savingPreferences} className={buttonSizeClass}>
                   <Save className="w-4 h-4 mr-2" />
                   {savingPreferences ? "Saving..." : "Save Preferences"}
                 </Button>

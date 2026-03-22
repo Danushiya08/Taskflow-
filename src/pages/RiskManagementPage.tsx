@@ -36,6 +36,16 @@ import {
 import { toast } from "sonner";
 import { useUserPreferences } from "@/hooks/useUserPreferences";
 import { formatDateByPreference } from "@/lib/dateFormat";
+import {
+  getPagePaddingClass,
+  getCardPaddingClass,
+  getGridGapClass,
+  getTitleClass,
+  getCardTitleClass,
+  getButtonSizeClass,
+  getInputSizeClass,
+  getIconSizeClass,
+} from "@/lib/uiDensity";
 
 type RiskProbability = "low" | "medium" | "high" | "critical";
 type RiskImpact = "low" | "medium" | "high" | "critical";
@@ -125,24 +135,27 @@ export function RiskManagementPage() {
   const { preferences, loadingPreferences } = useUserPreferences();
   const compactMode = preferences.compactMode;
 
-  const pagePadding = compactMode ? "p-4" : "p-6";
-  const sectionSpacing = compactMode ? "space-y-4" : "space-y-6";
-  const titleClass = compactMode ? "text-2xl font-semibold mb-1" : "text-3xl font-semibold mb-2";
+  const pageClass = `${getPagePaddingClass(compactMode)} bg-background text-foreground`;
+  const titleClass = getTitleClass(compactMode);
+  const gridGapClass = getGridGapClass(compactMode);
+  const cardTopPaddingClass = getCardPaddingClass(compactMode);
+  const cardTitleClass = getCardTitleClass(compactMode);
+  const buttonSizeClass = getButtonSizeClass(compactMode);
+  const inputSizeClass = getInputSizeClass(compactMode);
+  const metricIconClass = getIconSizeClass(compactMode);
+
   const subtitleClass = compactMode ? "text-sm text-muted-foreground" : "text-muted-foreground";
-  const gridGap = compactMode ? "gap-3" : "gap-4";
-  const cardTopPadding = compactMode ? "pt-4" : "pt-6";
   const cardHeaderPadding = compactMode ? "pb-2" : "pb-4";
-  const cardTitleClass = compactMode ? "text-base" : "text-lg";
   const metricValueClass = compactMode ? "text-xl font-semibold mt-1" : "text-2xl font-semibold mt-1";
-  const buttonCompactClass = compactMode ? "h-9 px-3" : "";
   const iconButtonCompactClass = compactMode ? "h-9 w-9 p-0" : "";
-  const selectTriggerCompactClass = compactMode ? "h-9" : "";
   const dialogFieldSpacing = compactMode ? "space-y-3 py-2" : "space-y-4 py-4";
   const dialogGridGap = compactMode ? "gap-3" : "gap-4";
   const textareaRows = compactMode ? 2 : 3;
   const riskListSpacing = compactMode ? "space-y-3" : "space-y-4";
   const infoGridGap = compactMode ? "gap-3" : "gap-4";
-  const riskCardTitleClass = compactMode ? "text-base font-medium text-card-foreground mb-1" : "text-lg font-medium text-card-foreground mb-1";
+  const riskCardTitleClass = compactMode
+    ? "text-base font-medium text-card-foreground mb-1"
+    : "text-lg font-medium text-card-foreground mb-1";
   const riskDescClass = compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground";
   const heatMapBoxClass = compactMode ? "h-16" : "h-20";
   const badgeTextClass = compactMode ? "text-[11px]" : "";
@@ -167,10 +180,8 @@ export function RiskManagementPage() {
 
   const extractProjectId = (risk: Risk) => {
     if (!risk.projectId) return "";
-
     if (typeof risk.projectId === "string") return risk.projectId;
     if (typeof risk.projectId === "object" && risk.projectId._id) return risk.projectId._id;
-
     return "";
   };
 
@@ -407,7 +418,7 @@ export function RiskManagementPage() {
           placeholder="e.g., Resource Shortage"
           value={formData.title}
           onChange={(e) => handleInputChange("title", e.target.value)}
-          className={selectTriggerCompactClass}
+          className={inputSizeClass}
         />
       </div>
 
@@ -430,7 +441,7 @@ export function RiskManagementPage() {
             onValueChange={(value) => handleInputChange("projectId", value)}
             disabled={projectsLoading || projects.length === 0}
           >
-            <SelectTrigger id={`${mode}-risk-project`} className={selectTriggerCompactClass}>
+            <SelectTrigger id={`${mode}-risk-project`} className={inputSizeClass}>
               <SelectValue
                 placeholder={
                   projectsLoading
@@ -469,7 +480,7 @@ export function RiskManagementPage() {
             placeholder="Enter owner name"
             value={formData.owner}
             onChange={(e) => handleInputChange("owner", e.target.value)}
-            className={selectTriggerCompactClass}
+            className={inputSizeClass}
           />
         </div>
       </div>
@@ -481,7 +492,7 @@ export function RiskManagementPage() {
             value={formData.probability}
             onValueChange={(value) => handleInputChange("probability", value)}
           >
-            <SelectTrigger id={`${mode}-risk-probability`} className={selectTriggerCompactClass}>
+            <SelectTrigger id={`${mode}-risk-probability`} className={inputSizeClass}>
               <SelectValue placeholder="Select probability" />
             </SelectTrigger>
             <SelectContent>
@@ -499,7 +510,7 @@ export function RiskManagementPage() {
             value={formData.impact}
             onValueChange={(value) => handleInputChange("impact", value)}
           >
-            <SelectTrigger id={`${mode}-risk-impact`} className={selectTriggerCompactClass}>
+            <SelectTrigger id={`${mode}-risk-impact`} className={inputSizeClass}>
               <SelectValue placeholder="Select impact" />
             </SelectTrigger>
             <SelectContent>
@@ -517,7 +528,7 @@ export function RiskManagementPage() {
             value={formData.status}
             onValueChange={(value) => handleInputChange("status", value)}
           >
-            <SelectTrigger id={`${mode}-risk-status`} className={selectTriggerCompactClass}>
+            <SelectTrigger id={`${mode}-risk-status`} className={inputSizeClass}>
               <SelectValue placeholder="Select status" />
             </SelectTrigger>
             <SelectContent>
@@ -544,7 +555,7 @@ export function RiskManagementPage() {
 
   if (loading || loadingPreferences) {
     return (
-      <div className={`${pagePadding} flex items-center justify-center min-h-[60vh] bg-background text-foreground`}>
+      <div className={`${pageClass} flex items-center justify-center min-h-[60vh]`}>
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span>Loading risk management data...</span>
@@ -554,7 +565,7 @@ export function RiskManagementPage() {
   }
 
   return (
-    <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
+    <div className={pageClass}>
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className={titleClass}>Risk Management</h1>
@@ -563,7 +574,7 @@ export function RiskManagementPage() {
 
         <Dialog open={isAddRiskOpen} onOpenChange={handleAddDialogOpenChange}>
           <DialogTrigger asChild>
-            <Button className={buttonCompactClass}>
+            <Button className={buttonSizeClass}>
               <Plus className="w-4 h-4 mr-2" />
               Add Risk
             </Button>
@@ -586,7 +597,7 @@ export function RiskManagementPage() {
                   setIsAddRiskOpen(false);
                   resetForm();
                 }}
-                className={buttonCompactClass}
+                className={buttonSizeClass}
               >
                 Cancel
               </Button>
@@ -594,7 +605,7 @@ export function RiskManagementPage() {
               <Button
                 onClick={handleAddRisk}
                 disabled={submitting || projectsLoading || projects.length === 0}
-                className={buttonCompactClass}
+                className={buttonSizeClass}
               >
                 {submitting ? (
                   <>
@@ -626,7 +637,7 @@ export function RiskManagementPage() {
                 setIsEditRiskOpen(false);
                 resetForm();
               }}
-              className={buttonCompactClass}
+              className={buttonSizeClass}
             >
               Cancel
             </Button>
@@ -634,7 +645,7 @@ export function RiskManagementPage() {
             <Button
               onClick={handleUpdateRisk}
               disabled={updating || projectsLoading || projects.length === 0}
-              className={buttonCompactClass}
+              className={buttonSizeClass}
             >
               {updating ? (
                 <>
@@ -664,10 +675,10 @@ export function RiskManagementPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRiskToDelete(null)} className={buttonCompactClass}>
+            <Button variant="outline" onClick={() => setRiskToDelete(null)} className={buttonSizeClass}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleDeleteRisk} disabled={deleting} className={buttonCompactClass}>
+            <Button variant="destructive" onClick={handleDeleteRisk} disabled={deleting} className={buttonSizeClass}>
               {deleting ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -681,51 +692,51 @@ export function RiskManagementPage() {
         </DialogContent>
       </Dialog>
 
-      <div className={`grid grid-cols-1 md:grid-cols-4 ${gridGap}`}>
+      <div className={`grid grid-cols-1 md:grid-cols-4 ${gridGapClass}`}>
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className={cardTopPadding}>
+          <CardContent className={cardTopPaddingClass}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Risks</p>
                 <p className={metricValueClass}>{stats.total}</p>
               </div>
-              <Activity className={compactMode ? "w-7 h-7 text-blue-600" : "w-8 h-8 text-blue-600"} />
+              <Activity className={`${metricIconClass} text-blue-600`} />
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className={cardTopPadding}>
+          <CardContent className={cardTopPaddingClass}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Critical Risks</p>
                 <p className={metricValueClass}>{stats.critical}</p>
               </div>
-              <AlertTriangle className={compactMode ? "w-7 h-7 text-red-600" : "w-8 h-8 text-red-600"} />
+              <AlertTriangle className={`${metricIconClass} text-red-600`} />
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className={cardTopPadding}>
+          <CardContent className={cardTopPaddingClass}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">High Priority</p>
                 <p className={metricValueClass}>{stats.high}</p>
               </div>
-              <TrendingUp className={compactMode ? "w-7 h-7 text-orange-600" : "w-8 h-8 text-orange-600"} />
+              <TrendingUp className={`${metricIconClass} text-orange-600`} />
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className={cardTopPadding}>
+          <CardContent className={cardTopPaddingClass}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Mitigated</p>
                 <p className={metricValueClass}>{stats.mitigated}</p>
               </div>
-              <Shield className={compactMode ? "w-7 h-7 text-green-600" : "w-8 h-8 text-green-600"} />
+              <Shield className={`${metricIconClass} text-green-600`} />
             </div>
           </CardContent>
         </Card>
@@ -780,11 +791,11 @@ export function RiskManagementPage() {
       </Card>
 
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
           type="search"
           placeholder="Search risks..."
-          className={`pl-10 ${selectTriggerCompactClass}`}
+          className={`pl-10 ${inputSizeClass}`}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
@@ -803,8 +814,11 @@ export function RiskManagementPage() {
             const colorClass = getRiskColor(riskScore);
 
             return (
-              <Card key={risk._id} className="border-border bg-card text-card-foreground hover:shadow-lg transition-shadow">
-                <CardContent className={cardTopPadding}>
+              <Card
+                key={risk._id}
+                className="border-border bg-card text-card-foreground hover:shadow-lg transition-shadow"
+              >
+                <CardContent className={cardTopPaddingClass}>
                   <div className="flex items-start gap-4">
                     <div className={`w-2 h-full rounded-full ${colorClass} flex-shrink-0`} />
 
@@ -868,7 +882,9 @@ export function RiskManagementPage() {
                         </div>
                       </div>
 
-                      <div className={`bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-lg ${mitigationPadding}`}>
+                      <div
+                        className={`bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-lg ${mitigationPadding}`}
+                      >
                         <h4 className="text-sm text-blue-900 dark:text-blue-200 mb-1">Mitigation Strategy:</h4>
                         <p className="text-sm text-blue-800 dark:text-blue-300">{risk.mitigation}</p>
                       </div>
@@ -883,7 +899,11 @@ export function RiskManagementPage() {
                         <div className="text-sm text-muted-foreground">
                           Identified:{" "}
                           {risk.identifiedDate
-                            ? formatDateByPreference(risk.identifiedDate, preferences.dateFormat)
+                            ? formatDateByPreference(
+                                risk.identifiedDate,
+                                preferences.dateFormat,
+                                preferences.timezone
+                              )
                             : "-"}
                         </div>
                       </div>

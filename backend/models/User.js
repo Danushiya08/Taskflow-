@@ -43,7 +43,15 @@ const userSchema = new mongoose.Schema(
       },
       timezone: {
         type: String,
-        enum: ["est", "pst", "cst", "gmt", "ist"],
+        enum: [
+          "gmt",
+          "UTC",
+          "Asia/Colombo",
+          "Asia/Kolkata",
+          "Europe/London",
+          "America/New_York",
+          "America/Los_Angeles",
+        ],
         default: "gmt",
       },
       dateFormat: {
@@ -55,6 +63,11 @@ const userSchema = new mongoose.Schema(
         type: String,
         enum: ["light", "dark", "auto"],
         default: "light",
+      },
+      currency: {
+        type: String,
+        enum: ["USD", "GBP", "LKR", "EUR"],
+        default: "USD",
       },
       defaultProjectView: {
         type: String,
