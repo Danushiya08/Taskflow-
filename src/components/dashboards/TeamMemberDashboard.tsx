@@ -54,6 +54,7 @@ type AssistantTask = {
   priority: "low" | "medium" | "high" | "critical";
   status: "pending" | "in-progress" | "completed";
   dueDate?: string;
+  rawDueDate?: string | null;
   progress?: number;
 };
 
@@ -94,28 +95,28 @@ const computeProjectHealth = (p: BackendProject): AssistantProject["status"] => 
 const getPriorityColor = (priority: string) => {
   switch (priority) {
     case "critical":
-      return "bg-red-200 text-red-800 border-red-300";
+      return "bg-red-200 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900";
     case "high":
-      return "bg-red-100 text-red-700 border-red-200";
+      return "bg-red-100 text-red-700 border-red-200 dark:bg-red-950/30 dark:text-red-300 dark:border-red-900";
     case "medium":
-      return "bg-yellow-100 text-yellow-700 border-yellow-200";
+      return "bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-950/30 dark:text-yellow-300 dark:border-yellow-900";
     case "low":
-      return "bg-blue-100 text-blue-700 border-blue-200";
+      return "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-900";
     default:
-      return "bg-gray-100 text-gray-700 border-gray-200";
+      return "bg-muted text-muted-foreground border-border";
   }
 };
 
 const getStatusColor = (status: string) => {
   switch (status) {
     case "in-progress":
-      return "bg-blue-100 text-blue-700";
+      return "bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300";
     case "pending":
-      return "bg-gray-100 text-gray-700";
+      return "bg-muted text-muted-foreground";
     case "completed":
-      return "bg-green-100 text-green-700";
+      return "bg-green-100 text-green-700 dark:bg-green-950/30 dark:text-green-300";
     default:
-      return "bg-gray-100 text-gray-700";
+      return "bg-muted text-muted-foreground";
   }
 };
 
@@ -204,6 +205,7 @@ export function TeamMemberDashboard() {
         project: projectName,
         priority: t.priority,
         status: mapTaskStatus(t.status),
+        rawDueDate: t.dueDate || null,
         dueDate: t.dueDate ? formatDateByPreference(t.dueDate, preferences.dateFormat) : undefined,
         progress,
       };
@@ -215,8 +217,8 @@ export function TeamMemberDashboard() {
     const completed = assistantTasks.filter((t) => t.status === "completed").length;
 
     const dueSoon = assistantTasks.filter((t) => {
-      if (!t.dueDate) return false;
-      const due = new Date(t.dueDate);
+      if (!t.rawDueDate) return false;
+      const due = new Date(t.rawDueDate);
       const now = new Date();
       const daysLeft = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
       return daysLeft >= 0 && daysLeft <= 7 && t.status !== "completed";
@@ -227,13 +229,17 @@ export function TeamMemberDashboard() {
 
   const upcomingDeadlines = useMemo(() => {
     return [...assistantTasks]
-      .filter((t) => t.status !== "completed" && t.dueDate)
-      .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
+      .filter((t) => t.status !== "completed" && t.rawDueDate)
+      .sort((a, b) => new Date(a.rawDueDate!).getTime() - new Date(b.rawDueDate!).getTime())
       .slice(0, 3);
   }, [assistantTasks]);
 
   const recentActivity = [
-    { action: "Synced data", description: "Projects + assigned tasks loaded from server", time: "Just now" },
+    {
+      action: "Synced data",
+      description: "Projects + assigned tasks loaded from server",
+      time: "Just now",
+    },
   ];
 
   const pagePadding = compactMode ? "p-4" : "p-6";
@@ -241,10 +247,14 @@ export function TeamMemberDashboard() {
   const gridGap = compactMode ? "gap-4" : "gap-6";
   const cardHeaderPadding = compactMode ? "pb-2" : "pb-4";
   const cardTopPadding = compactMode ? "pt-4" : "pt-6";
-  const titleClass = compactMode ? "text-2xl font-semibold text-gray-900" : "text-3xl text-gray-900";
-  const subtitleClass = compactMode ? "text-sm text-gray-600" : "text-gray-600";
+  const titleClass = compactMode
+    ? "text-2xl font-semibold text-foreground"
+    : "text-3xl font-semibold text-foreground";
+  const subtitleClass = compactMode ? "text-sm text-muted-foreground" : "text-muted-foreground";
   const cardTitleClass = compactMode ? "text-base" : "text-lg";
-  const metricValueClass = compactMode ? "text-xl text-gray-900 font-semibold" : "text-2xl text-gray-900";
+  const metricValueClass = compactMode
+    ? "text-xl font-semibold text-foreground"
+    : "text-2xl font-semibold text-foreground";
   const chartHeight = compactMode ? 220 : 256;
   const progressHeight = compactMode ? "h-2" : "h-3";
   const listSpacing = compactMode ? "space-y-3" : "space-y-4";
@@ -253,7 +263,7 @@ export function TeamMemberDashboard() {
 
   if (loading || loadingPreferences) {
     return (
-      <div className={`${pagePadding} ${sectionSpacing}`}>
+      <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
         <h1 className={titleClass}>My Dashboard</h1>
         <p className={subtitleClass}>Loading your projects and tasks...</p>
       </div>
@@ -262,10 +272,12 @@ export function TeamMemberDashboard() {
 
   if (errMsg) {
     return (
-      <div className={`${pagePadding} ${sectionSpacing}`}>
+      <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
         <h1 className={titleClass}>My Dashboard</h1>
-        <div className="p-4 rounded border border-red-200 bg-red-50 text-red-700">{errMsg}</div>
-        <p className="text-sm text-gray-600">
+        <div className="p-4 rounded border border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          {errMsg}
+        </div>
+        <p className="text-sm text-muted-foreground">
           Confirm backend logs show routes like: <span className="font-mono">GET /projects</span> and{" "}
           <span className="font-mono">GET /api/projects/&lt;projectId&gt;/tasks</span>
         </p>
@@ -274,28 +286,28 @@ export function TeamMemberDashboard() {
   }
 
   return (
-    <div className={`${pagePadding} ${sectionSpacing}`}>
+    <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
       <div>
         <h1 className={titleClass}>My Dashboard</h1>
         <p className={subtitleClass}>Track your tasks and productivity</p>
       </div>
 
       <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 ${gridGap}`}>
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">My Tasks</CardTitle>
-            <Target className="w-4 h-4 text-gray-600" />
+            <Target className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className={cardTopPadding}>
             <div className={metricValueClass}>{stats.totalTasks}</div>
-            <p className="text-xs text-gray-600 mt-1">{stats.dueSoon} due this week</p>
+            <p className="text-xs text-muted-foreground mt-1">{stats.dueSoon} due this week</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Completed</CardTitle>
-            <CheckCircle2 className="w-4 h-4 text-gray-600" />
+            <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className={cardTopPadding}>
             <div className={metricValueClass}>{stats.completed}</div>
@@ -306,25 +318,25 @@ export function TeamMemberDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Hours This Week</CardTitle>
-            <Clock className="w-4 h-4 text-gray-600" />
+            <Clock className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className={cardTopPadding}>
             <div className={metricValueClass}>35h</div>
-            <p className="text-xs text-gray-600 mt-1">Out of 40h target</p>
+            <p className="text-xs text-muted-foreground mt-1">Out of 40h target</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Projects</CardTitle>
-            <Users className="w-4 h-4 text-gray-600" />
+            <Users className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className={cardTopPadding}>
             <div className={metricValueClass}>{assistantProjects.length}</div>
-            <p className="text-xs text-gray-600 mt-1">Active projects</p>
+            <p className="text-xs text-muted-foreground mt-1">Active projects</p>
           </CardContent>
         </Card>
       </div>
@@ -338,21 +350,24 @@ export function TeamMemberDashboard() {
       />
 
       <div className={`grid grid-cols-1 lg:grid-cols-3 ${gridGap}`}>
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 border-border bg-card text-card-foreground">
           <CardHeader className={cardHeaderPadding}>
             <CardTitle className={cardTitleClass}>My Tasks</CardTitle>
             <CardDescription>Tasks assigned to you</CardDescription>
           </CardHeader>
           <CardContent className={listSpacing}>
             {assistantTasks.length === 0 ? (
-              <div className="text-sm text-gray-600">No tasks assigned to you yet.</div>
+              <div className="text-sm text-muted-foreground">No tasks assigned to you yet.</div>
             ) : (
               assistantTasks.map((task) => (
-                <div key={task.id} className={`${taskBoxPadding} bg-gray-50 rounded-lg ${taskBoxSpacing}`}>
+                <div
+                  key={task.id}
+                  className={`${taskBoxPadding} bg-muted/40 rounded-lg ${taskBoxSpacing} border border-border`}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
-                      <h4 className="text-sm text-gray-900 mb-1">{task.title}</h4>
-                      <p className="text-xs text-gray-600">{task.project}</p>
+                      <h4 className="text-sm text-card-foreground mb-1">{task.title}</h4>
+                      <p className="text-xs text-muted-foreground">{task.project}</p>
                     </div>
                     <Badge className={getPriorityColor(task.priority)}>{task.priority}</Badge>
                   </div>
@@ -362,20 +377,23 @@ export function TeamMemberDashboard() {
                       <span className={`px-2 py-1 rounded ${getStatusColor(task.status)}`}>
                         {task.status.replace("-", " ")}
                       </span>
+
                       {task.dueDate ? (
-                        <div className="flex items-center gap-1 text-gray-600">
+                        <div className="flex items-center gap-1 text-muted-foreground">
                           <Calendar className="w-3 h-3" />
                           <span>Due {task.dueDate}</span>
                         </div>
                       ) : (
-                        <span className="text-gray-500">No due date</span>
+                        <span className="text-muted-foreground">No due date</span>
                       )}
                     </div>
 
                     {(task.progress ?? 0) > 0 && (
-                      <div className={compactMode ? "space-y-1" : "space-y-1"}>
+                      <div className="space-y-1">
                         <Progress value={task.progress ?? 0} className={progressHeight} />
-                        <p className="text-xs text-gray-600 text-right">{task.progress ?? 0}% complete</p>
+                        <p className="text-xs text-muted-foreground text-right">
+                          {task.progress ?? 0}% complete
+                        </p>
                       </div>
                     )}
                   </div>
@@ -385,7 +403,7 @@ export function TeamMemberDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={cardHeaderPadding}>
             <CardTitle className={cardTitleClass}>Recent Activity</CardTitle>
             <CardDescription>Your recent updates</CardDescription>
@@ -396,9 +414,9 @@ export function TeamMemberDashboard() {
                 <div key={index} className="flex gap-3">
                   <div className="w-2 h-2 rounded-full bg-blue-600 mt-2 flex-shrink-0" />
                   <div>
-                    <p className="text-sm text-gray-900">{activity.action}</p>
-                    <p className="text-xs text-gray-600">{activity.description}</p>
-                    <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
+                    <p className="text-sm text-card-foreground">{activity.action}</p>
+                    <p className="text-xs text-muted-foreground">{activity.description}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{activity.time}</p>
                   </div>
                 </div>
               ))}
@@ -408,7 +426,7 @@ export function TeamMemberDashboard() {
       </div>
 
       <div className={`grid grid-cols-1 lg:grid-cols-2 ${gridGap}`}>
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={cardHeaderPadding}>
             <CardTitle className={cardTitleClass}>Time Tracking</CardTitle>
             <CardDescription>Hours logged this week</CardDescription>
@@ -428,26 +446,26 @@ export function TeamMemberDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={cardHeaderPadding}>
             <CardTitle className={cardTitleClass}>Upcoming Deadlines</CardTitle>
             <CardDescription>Tasks due soon</CardDescription>
           </CardHeader>
           <CardContent>
             {upcomingDeadlines.length === 0 ? (
-              <div className="text-sm text-gray-600">No upcoming deadlines.</div>
+              <div className="text-sm text-muted-foreground">No upcoming deadlines.</div>
             ) : (
               <div className={compactMode ? "space-y-2" : "space-y-3"}>
                 {upcomingDeadlines.map((t) => (
                   <div
                     key={t.id}
-                    className={`flex items-center justify-between ${compactMode ? "p-2.5" : "p-3"} bg-gray-50 rounded-lg border border-gray-200 gap-3`}
+                    className={`flex items-center justify-between ${compactMode ? "p-2.5" : "p-3"} bg-muted/40 rounded-lg border border-border gap-3`}
                   >
                     <div className="flex items-center gap-3">
-                      <AlertCircle className="w-5 h-5 text-gray-700" />
+                      <AlertCircle className="w-5 h-5 text-muted-foreground" />
                       <div>
-                        <p className="text-sm text-gray-900">{t.title}</p>
-                        <p className="text-xs text-gray-600">Due {t.dueDate}</p>
+                        <p className="text-sm text-card-foreground">{t.title}</p>
+                        <p className="text-xs text-muted-foreground">Due {t.dueDate}</p>
                       </div>
                     </div>
                     <Badge className={getPriorityColor(t.priority)}>{t.priority}</Badge>

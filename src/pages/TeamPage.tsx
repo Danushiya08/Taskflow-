@@ -33,9 +33,18 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useUserPreferences } from "@/hooks/useUserPreferences";
+import { formatDateByPreference } from "@/lib/dateFormat";
+import { mapTimezonePreference } from "@/lib/timezone";
 
 type Role = "admin" | "project-manager" | "team-member" | "client";
 type StatusFilter = "all" | "active" | "disabled";
@@ -44,15 +53,16 @@ type SortBy = "recent" | "name" | "role" | "tasks";
 
 type TaskStatus = "todo" | "in-progress" | "done";
 type TaskPriority = "low" | "medium" | "high" | "critical";
-type DateFormatPreference = "mdy" | "dmy" | "ymd";
 
 const NONE = "__none__";
 
 const normalizeRole = (role: any): Role | string => {
   const r = String(role || "").trim().toLowerCase();
   if (r === "admin") return "admin";
-  if (["project-manager", "projectmanager", "project manager", "pm"].includes(r)) return "project-manager";
-  if (["team-member", "teammember", "team member", "member"].includes(r)) return "team-member";
+  if (["project-manager", "projectmanager", "project manager", "pm"].includes(r))
+    return "project-manager";
+  if (["team-member", "teammember", "team member", "member"].includes(r))
+    return "team-member";
   if (r === "client") return "client";
   return r;
 };
@@ -115,25 +125,10 @@ const loadRiskFromTasks = (tasksCount: number) => {
   return { label: "Light", variant: "outline" as const };
 };
 
-const formatDateByPreference = (value: string | null | undefined, dateFormat: DateFormatPreference) => {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const year = d.getFullYear();
-
-  if (dateFormat === "dmy") return `${day}/${month}/${year}`;
-  if (dateFormat === "ymd") return `${year}-${month}-${day}`;
-  return `${month}/${day}/${year}`;
-};
-
 export function TeamPage() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [dateFormat, setDateFormat] = useState<DateFormatPreference>("mdy");
 
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -187,6 +182,14 @@ export function TeamPage() {
   const [assignDueDate, setAssignDueDate] = useState("");
   const [assigning, setAssigning] = useState(false);
 
+  const { preferences, loadingPreferences } = useUserPreferences();
+  const compactMode = preferences.compactMode;
+
+  const timezone = useMemo(
+    () => mapTimezonePreference(preferences.timezone),
+    [preferences.timezone]
+  );
+
   const currentUser = useMemo(() => {
     try {
       const raw = localStorage.getItem("user");
@@ -198,7 +201,8 @@ export function TeamPage() {
 
   const myRole = normalizeRole(currentUser?.role) as Role;
 
-  const canViewTeam = myRole === "admin" || myRole === "project-manager" || myRole === "team-member";
+  const canViewTeam =
+    myRole === "admin" || myRole === "project-manager" || myRole === "team-member";
   const canViewStats = myRole === "admin" || myRole === "project-manager";
   const canChangeRole = myRole === "admin";
   const canToggleUser = myRole === "admin" || myRole === "project-manager";
@@ -206,15 +210,34 @@ export function TeamPage() {
   const canDelete = myRole === "admin" || myRole === "project-manager";
   const canAssignTask = myRole === "admin" || myRole === "project-manager";
 
-  const loadPreferences = async () => {
-    try {
-      const res = await api.get("/settings/me");
-      const prefs = res?.data?.preferences || {};
-      setDateFormat((prefs.dateFormat as DateFormatPreference) || "mdy");
-    } catch {
-      setDateFormat("mdy");
-    }
-  };
+  const pagePadding = compactMode ? "p-4" : "p-6";
+  const sectionSpacing = compactMode ? "space-y-4" : "space-y-6";
+  const titleClass = compactMode ? "text-2xl font-semibold mb-1" : "text-3xl font-semibold mb-2";
+  const subtitleClass = compactMode ? "text-sm text-muted-foreground" : "text-muted-foreground";
+  const topGap = compactMode ? "gap-3" : "gap-4";
+  const statsGap = compactMode ? "gap-3" : "gap-4";
+  const filterGap = compactMode ? "gap-2" : "gap-3";
+  const gridGap = compactMode ? "gap-4" : "gap-6";
+  const buttonCompactClass = compactMode ? "h-9 px-3" : "";
+  const iconButtonCompactClass = compactMode ? "h-8 w-8 p-0" : "";
+  const selectTriggerCompactClass = compactMode ? "h-9" : "";
+  const inputCompactClass = compactMode ? "h-9" : "";
+  const cardHeaderPadding = compactMode ? "pb-3" : "";
+  const cardContentSpacing = compactMode ? "space-y-3" : "space-y-4";
+  const actionButtonSize = "sm";
+  const avatarSize = compactMode ? "w-12 h-12" : "w-14 h-14";
+  const viewAvatarSize = compactMode ? "w-14 h-14" : "w-16 h-16";
+  const metricValueClass = compactMode ? "text-xl font-semibold mt-1" : "text-2xl font-semibold mt-1";
+  const metricLabelClass = compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground";
+  const memberTitleClass = compactMode
+    ? "text-base font-medium text-card-foreground leading-tight"
+    : "text-lg font-medium text-card-foreground leading-tight";
+  const cardInnerPadding = compactMode ? "p-2.5" : "p-3";
+  const dialogFieldSpacing = compactMode ? "space-y-3 py-2" : "space-y-4 py-2";
+  const dialogGridGap = compactMode ? "gap-3" : "gap-4";
+  const textareaRows = compactMode ? 2 : 3;
+  const progressHeight = compactMode ? "h-2" : "";
+  const loadMorePadding = compactMode ? "pt-1" : "pt-2";
 
   const loadTeam = async () => {
     setLoading(true);
@@ -249,23 +272,26 @@ export function TeamPage() {
       setLoading(false);
       return;
     }
-
-    const init = async () => {
-      await Promise.all([loadTeam(), loadPreferences()]);
-    };
-
-    init();
+    loadTeam();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const stats = useMemo(() => {
     const total = users.length;
-    const active = users.filter((u) => (typeof u.isActive === "boolean" ? u.isActive : true)).length;
+    const active = users.filter((u) =>
+      typeof u.isActive === "boolean" ? u.isActive : true
+    ).length;
 
-    const taskCounts = users.map((u) => (typeof u.tasksCount === "number" ? u.tasksCount : 0));
-    const avgTasks = total ? Math.round(taskCounts.reduce((a, b) => a + b, 0) / total) : 0;
+    const taskCounts = users.map((u) =>
+      typeof u.tasksCount === "number" ? u.tasksCount : 0
+    );
+    const avgTasks = total
+      ? Math.round(taskCounts.reduce((a, b) => a + b, 0) / total)
+      : 0;
     const avgLoad = loadPercentFromTasks(avgTasks);
-    const overloaded = users.filter((u) => (typeof u.tasksCount === "number" ? u.tasksCount : 0) > 30).length;
+    const overloaded = users.filter(
+      (u) => (typeof u.tasksCount === "number" ? u.tasksCount : 0) > 30
+    ).length;
 
     return { total, active, avgLoad, overloaded };
   }, [users]);
@@ -295,21 +321,55 @@ export function TeamPage() {
       });
 
     list = [...list].sort((a, b) => {
-      if (sortBy === "recent") return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
-      if (sortBy === "name") return String(a.name || "").localeCompare(String(b.name || ""));
-      if (sortBy === "role") return String(a.role || "").localeCompare(String(b.role || ""));
-      if (sortBy === "tasks") return Number(b.tasksCount || 0) - Number(a.tasksCount || 0);
+      if (sortBy === "recent")
+        return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+      if (sortBy === "name")
+        return String(a.name || "").localeCompare(String(b.name || ""));
+      if (sortBy === "role")
+        return String(a.role || "").localeCompare(String(b.role || ""));
+      if (sortBy === "tasks")
+        return Number(b.tasksCount || 0) - Number(a.tasksCount || 0);
       return 0;
     });
 
     return list;
   }, [users, searchQuery, roleFilter, statusFilter, sortBy]);
 
-  const pagedUsers = useMemo(() => filteredSortedUsers.slice(0, visibleCount), [filteredSortedUsers, visibleCount]);
+  const pagedUsers = useMemo(
+    () => filteredSortedUsers.slice(0, visibleCount),
+    [filteredSortedUsers, visibleCount]
+  );
+
+  const detailsTasks = useMemo(
+    () => (Array.isArray(detailsPayload.tasks) ? detailsPayload.tasks : []),
+    [detailsPayload.tasks]
+  );
+
+  const detailsProjects = useMemo(
+    () => (Array.isArray(detailsPayload.projects) ? detailsPayload.projects : []),
+    [detailsPayload.projects]
+  );
+
+  const detailsCounts = useMemo(() => {
+    const byStatus = { todo: 0, "in-progress": 0, done: 0 } as Record<TaskStatus, number>;
+
+    for (const t of detailsTasks) {
+      const s = (t?.status || "todo") as TaskStatus;
+      if (byStatus[s] !== undefined) byStatus[s] += 1;
+    }
+
+    const total = detailsTasks.length;
+    const loadPct = loadPercentFromTasks(total);
+    const risk = loadRiskFromTasks(total);
+
+    return { byStatus, total, loadPct, risk };
+  }, [detailsTasks]);
+
+  const overloadedDanger = stats.overloaded > 0;
 
   const openEdit = (u: any) => {
     setEditingUser(u);
-    setEditRole(normalizeRole(u.role) as any);
+    setEditRole(normalizeRole(u.role) as Exclude<Role, "client">);
     setIsEditOpen(true);
   };
 
@@ -492,37 +552,31 @@ export function TeamPage() {
 
   if (!canViewTeam) {
     return (
-      <div className="p-6 space-y-2 bg-background text-foreground">
-        <h1 className="text-3xl font-semibold">Team & Roles</h1>
-        <p className="text-muted-foreground">This page is not available for your role.</p>
+      <div className={`${pagePadding} space-y-2 bg-background text-foreground`}>
+        <h1 className={compactMode ? "text-2xl font-semibold" : "text-3xl font-semibold"}>
+          Team & Roles
+        </h1>
+        <p className={subtitleClass}>This page is not available for your role.</p>
       </div>
     );
   }
 
-  const overloadedDanger = stats.overloaded > 0;
-
-  const detailsTasks = Array.isArray(detailsPayload.tasks) ? detailsPayload.tasks : [];
-  const detailsProjects = Array.isArray(detailsPayload.projects) ? detailsPayload.projects : [];
-
-  const detailsCounts = useMemo(() => {
-    const byStatus = { todo: 0, "in-progress": 0, done: 0 } as Record<TaskStatus, number>;
-    for (const t of detailsTasks) {
-      const s = (t?.status || "todo") as TaskStatus;
-      if (byStatus[s] !== undefined) byStatus[s] += 1;
-    }
-    const total = detailsTasks.length;
-    const loadPct = loadPercentFromTasks(total);
-    const risk = loadRiskFromTasks(total);
-    return { byStatus, total, loadPct, risk };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detailsOpen, detailsTasks.length]);
+  if (loadingPreferences) {
+    return (
+      <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
+        <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
+          Loading team page...
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-6 space-y-6 bg-background text-foreground">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
+      <div className={`flex items-center justify-between flex-wrap ${topGap}`}>
         <div>
-          <h1 className="text-3xl font-semibold mb-2">Team & Roles</h1>
-          <p className="text-muted-foreground">Manage users, roles, and workload across projects</p>
+          <h1 className={titleClass}>Team & Roles</h1>
+          <p className={subtitleClass}>Manage users, roles, and workload across projects</p>
         </div>
 
         {canAddMember && (
@@ -533,6 +587,7 @@ export function TeamPage() {
               setAddOpen(true);
             }}
             title="Add a new internal user"
+            className={buttonCompactClass}
           >
             <Plus className="w-4 h-4 mr-2" />
             Add Member
@@ -541,73 +596,85 @@ export function TeamPage() {
       </div>
 
       {canViewStats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className={`grid grid-cols-1 md:grid-cols-4 ${statsGap}`}>
           <Card className="border-border bg-card text-card-foreground">
-            <CardContent className="pt-6">
+            <CardContent className={compactMode ? "pt-4" : "pt-6"}>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Total Members</p>
-                  <p className="text-2xl font-semibold mt-1">{stats.total}</p>
+                  <p className={metricLabelClass}>Total Members</p>
+                  <p className={metricValueClass}>{stats.total}</p>
                 </div>
-                <CheckCircle2 className="w-8 h-8 text-blue-600" />
+                <CheckCircle2 className={compactMode ? "w-7 h-7 text-blue-600" : "w-8 h-8 text-blue-600"} />
               </div>
             </CardContent>
           </Card>
 
           <Card className="border-border bg-card text-card-foreground">
-            <CardContent className="pt-6">
+            <CardContent className={compactMode ? "pt-4" : "pt-6"}>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Active Now</p>
-                  <p className="text-2xl font-semibold mt-1">{stats.active}</p>
+                  <p className={metricLabelClass}>Active Now</p>
+                  <p className={metricValueClass}>{stats.active}</p>
                 </div>
-                <TrendingUp className="w-8 h-8 text-green-600" />
+                <TrendingUp className={compactMode ? "w-7 h-7 text-green-600" : "w-8 h-8 text-green-600"} />
               </div>
             </CardContent>
           </Card>
 
           <Card className="border-border bg-card text-card-foreground">
-            <CardContent className="pt-6">
+            <CardContent className={compactMode ? "pt-4" : "pt-6"}>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Avg. Load</p>
-                  <p className="text-2xl font-semibold mt-1">{stats.avgLoad}%</p>
+                  <p className={metricLabelClass}>Avg. Load</p>
+                  <p className={metricValueClass}>{stats.avgLoad}%</p>
                 </div>
-                <Clock className="w-8 h-8 text-yellow-600" />
+                <Clock className={compactMode ? "w-7 h-7 text-yellow-600" : "w-8 h-8 text-yellow-600"} />
               </div>
             </CardContent>
           </Card>
 
-          <Card className={`border-border bg-card text-card-foreground ${overloadedDanger ? "border-red-300 dark:border-red-900" : ""}`}>
-            <CardContent className="pt-6">
+          <Card
+            className={`border-border bg-card text-card-foreground ${
+              overloadedDanger ? "border-red-300 dark:border-red-900" : ""
+            }`}
+          >
+            <CardContent className={compactMode ? "pt-4" : "pt-6"}>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Overloaded</p>
-                  <p className={`text-2xl font-semibold mt-1 ${overloadedDanger ? "text-red-600" : "text-card-foreground"}`}>
+                  <p className={metricLabelClass}>Overloaded</p>
+                  <p
+                    className={`${metricValueClass} ${
+                      overloadedDanger ? "text-red-600" : "text-card-foreground"
+                    }`}
+                  >
                     {stats.overloaded}
                   </p>
                 </div>
-                <AlertTriangle className={`w-8 h-8 ${overloadedDanger ? "text-red-600" : "text-muted-foreground"}`} />
+                <AlertTriangle
+                  className={`${compactMode ? "w-7 h-7" : "w-8 h-8"} ${
+                    overloadedDanger ? "text-red-600" : "text-muted-foreground"
+                  }`}
+                />
               </div>
             </CardContent>
           </Card>
         </div>
       )}
 
-      <div className="flex gap-3 items-center flex-wrap">
+      <div className={`flex ${filterGap} items-center flex-wrap`}>
         <div className="relative flex-1 min-w-[260px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             type="search"
             placeholder="Search team members..."
-            className="pl-10"
+            className={`pl-10 ${inputCompactClass}`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
         <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as RoleFilter)}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className={`w-48 ${selectTriggerCompactClass}`}>
             <SelectValue placeholder="Filter role" />
           </SelectTrigger>
           <SelectContent>
@@ -619,7 +686,7 @@ export function TeamPage() {
         </Select>
 
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-          <SelectTrigger className="w-44">
+          <SelectTrigger className={`w-44 ${selectTriggerCompactClass}`}>
             <SelectValue placeholder="Filter status" />
           </SelectTrigger>
           <SelectContent>
@@ -630,7 +697,7 @@ export function TeamPage() {
         </Select>
 
         <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortBy)}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className={`w-48 ${selectTriggerCompactClass}`}>
             <SelectValue placeholder="Sort" />
           </SelectTrigger>
           <SelectContent>
@@ -643,43 +710,59 @@ export function TeamPage() {
       </div>
 
       {loading ? (
-        <div className="text-sm text-muted-foreground">Loading team...</div>
+        <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
+          Loading team...
+        </div>
       ) : pagedUsers.length === 0 ? (
-        <div className="text-sm text-muted-foreground">
+        <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
           No members found.
-          <div className="text-xs text-muted-foreground mt-1">Try changing filters or search keywords.</div>
+          <div className="text-xs text-muted-foreground mt-1">
+            Try changing filters or search keywords.
+          </div>
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 ${gridGap}`}>
             {pagedUsers.map((u) => {
               const r = String(normalizeRole(u.role));
               const active = typeof u.isActive === "boolean" ? u.isActive : true;
               const disabledStyle = !active ? "opacity-60 grayscale" : "";
 
-              const pmCannotDisableAdmin = myRole === "project-manager" && (r === "admin" || r === "project-manager");
+              const pmCannotDisableAdmin =
+                myRole === "project-manager" && (r === "admin" || r === "project-manager");
               const pmCannotDelete = myRole === "project-manager" && r !== "team-member";
               const adminCannotDeleteAdmin = myRole === "admin" && r === "admin";
 
-              const projectsCount = canViewStats ? (typeof u.projectsCount === "number" ? u.projectsCount : 0) : null;
-              const tasksCount = canViewStats ? (typeof u.tasksCount === "number" ? u.tasksCount : 0) : null;
+              const projectsCount = canViewStats
+                ? typeof u.projectsCount === "number"
+                  ? u.projectsCount
+                  : 0
+                : null;
+              const tasksCount = canViewStats
+                ? typeof u.tasksCount === "number"
+                  ? u.tasksCount
+                  : 0
+                : null;
 
               const topAssignedBy = canViewStats ? u.topAssignedBy : null;
 
               return (
-                <Card key={u._id} className={`border-border bg-card text-card-foreground hover:shadow-lg transition-shadow ${disabledStyle}`}>
-                  <CardHeader>
+                <Card
+                  key={u._id}
+                  className={`border-border bg-card text-card-foreground hover:shadow-lg transition-shadow ${disabledStyle}`}
+                >
+                  <CardHeader className={cardHeaderPadding}>
                     <div className="flex items-start gap-4">
                       <img
                         src={avatarUrl(u.name || u.email || "User")}
                         alt={u.name || "User"}
-                        className="w-14 h-14 rounded-full"
+                        className={`${avatarSize} rounded-full`}
                       />
 
                       <div className="flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <h3 className="text-lg font-medium text-card-foreground leading-tight">{u.name || "—"}</h3>
+                            <h3 className={memberTitleClass}>{u.name || "—"}</h3>
 
                             <div className="flex items-center gap-2 mt-2 flex-wrap">
                               <span className={`text-xs px-2 py-1 rounded-md border ${roleBadgeClass(r)}`}>
@@ -691,7 +774,9 @@ export function TeamPage() {
                               </Badge>
                             </div>
 
-                            <div className="text-xs text-muted-foreground mt-2">{u.lastActiveLabel || "Offline"}</div>
+                            <div className="text-xs text-muted-foreground mt-2">
+                              {u.lastActiveLabel || "Offline"}
+                            </div>
                           </div>
 
                           <div className="relative">
@@ -699,6 +784,7 @@ export function TeamPage() {
                               type="button"
                               variant="ghost"
                               size="icon"
+                              className={iconButtonCompactClass}
                               disabled={!active}
                               onClick={() => setOpenMenuFor((prev) => (prev === u._id ? null : u._id))}
                               title="Actions"
@@ -722,7 +808,9 @@ export function TeamPage() {
                                     Edit role
                                   </button>
                                 ) : (
-                                  <div className="px-3 py-2 text-sm text-muted-foreground">No role changes</div>
+                                  <div className="px-3 py-2 text-sm text-muted-foreground">
+                                    No role changes
+                                  </div>
                                 )}
 
                                 {canToggleUser ? (
@@ -767,13 +855,20 @@ export function TeamPage() {
                         </div>
 
                         <div className="flex gap-2 mt-4 flex-wrap">
-                          <Button variant="outline" size="sm" disabled={!active} onClick={() => openView(u)}>
+                          <Button
+                            variant="outline"
+                            size={actionButtonSize}
+                            className={buttonCompactClass}
+                            disabled={!active}
+                            onClick={() => openView(u)}
+                          >
                             View
                           </Button>
 
                           <Button
                             variant="outline"
-                            size="sm"
+                            size={actionButtonSize}
+                            className={buttonCompactClass}
                             disabled={!active || !canAssignTask}
                             title={!canAssignTask ? "Only Admin/PM can assign tasks" : "Assign a task"}
                             onClick={() => openAssign(u)}
@@ -781,7 +876,13 @@ export function TeamPage() {
                             Assign
                           </Button>
 
-                          <Button variant="outline" size="sm" disabled={!active} onClick={() => openDetails(u)}>
+                          <Button
+                            variant="outline"
+                            size={actionButtonSize}
+                            className={buttonCompactClass}
+                            disabled={!active}
+                            onClick={() => openDetails(u)}
+                          >
                             Details
                           </Button>
                         </div>
@@ -789,16 +890,18 @@ export function TeamPage() {
                     </div>
                   </CardHeader>
 
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <CardContent className={cardContentSpacing}>
+                    <div className={`flex items-center gap-2 ${compactMode ? "text-xs" : "text-sm"} text-muted-foreground`}>
                       <Mail className="w-4 h-4" />
                       <span className="truncate">{u.email || "—"}</span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3 pt-4 border-t border-border">
-                      <div className="rounded-md border border-border p-3">
+                    <div className={`grid grid-cols-2 ${compactMode ? "gap-2.5" : "gap-3"} pt-4 border-t border-border`}>
+                      <div className={`rounded-md border border-border ${cardInnerPadding}`}>
                         <p className="text-xs text-muted-foreground">📌 Tasks</p>
-                        <p className="text-lg font-medium text-card-foreground">{tasksCount === null ? "—" : tasksCount}</p>
+                        <p className={compactMode ? "text-base font-medium text-card-foreground" : "text-lg font-medium text-card-foreground"}>
+                          {tasksCount === null ? "—" : tasksCount}
+                        </p>
 
                         {Array.isArray(u.tasks) && u.tasks.length > 0 && canViewStats ? (
                           <ul className="text-xs text-muted-foreground mt-2 space-y-1">
@@ -814,15 +917,18 @@ export function TeamPage() {
 
                         {topAssignedBy && topAssignedBy?.name ? (
                           <p className="text-xs text-muted-foreground mt-2">
-                            Mostly assigned by: <span className="text-card-foreground">{topAssignedBy.name}</span> (
+                            Mostly assigned by:{" "}
+                            <span className="text-card-foreground">{topAssignedBy.name}</span> (
                             {topAssignedBy.count})
                           </p>
                         ) : null}
                       </div>
 
-                      <div className="rounded-md border border-border p-3">
+                      <div className={`rounded-md border border-border ${cardInnerPadding}`}>
                         <p className="text-xs text-muted-foreground">📁 Projects</p>
-                        <p className="text-lg font-medium text-card-foreground">{projectsCount === null ? "—" : projectsCount}</p>
+                        <p className={compactMode ? "text-base font-medium text-card-foreground" : "text-lg font-medium text-card-foreground"}>
+                          {projectsCount === null ? "—" : projectsCount}
+                        </p>
 
                         {Array.isArray(u.projects) && u.projects.length > 0 && canViewStats ? (
                           <ul className="text-xs text-muted-foreground mt-2 space-y-1">
@@ -844,8 +950,12 @@ export function TeamPage() {
           </div>
 
           {visibleCount < filteredSortedUsers.length && (
-            <div className="flex justify-center pt-2">
-              <Button variant="outline" onClick={() => setVisibleCount((c) => c + 9)}>
+            <div className={`flex justify-center ${loadMorePadding}`}>
+              <Button
+                variant="outline"
+                onClick={() => setVisibleCount((c) => c + 9)}
+                className={buttonCompactClass}
+              >
                 Load more
               </Button>
             </div>
@@ -870,15 +980,21 @@ export function TeamPage() {
             <img
               src={avatarUrl(viewUser?.name || viewUser?.email || "User")}
               alt={viewUser?.name || "User"}
-              className="w-16 h-16 rounded-full"
+              className={`${viewAvatarSize} rounded-full`}
             />
             <div className="flex-1">
-              <div className="text-lg font-medium text-card-foreground">{viewUser?.name || "—"}</div>
-              <div className="text-sm text-muted-foreground">{viewUser?.email || "—"}</div>
+              <div className={compactMode ? "text-base font-medium text-card-foreground" : "text-lg font-medium text-card-foreground"}>
+                {viewUser?.name || "—"}
+              </div>
+              <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
+                {viewUser?.email || "—"}
+              </div>
 
               <div className="flex items-center gap-2 mt-3 flex-wrap">
                 <span
-                  className={`text-xs px-2 py-1 rounded-md border ${roleBadgeClass(String(normalizeRole(viewUser?.role)))}`}
+                  className={`text-xs px-2 py-1 rounded-md border ${roleBadgeClass(
+                    String(normalizeRole(viewUser?.role))
+                  )}`}
                 >
                   {roleLabel(String(normalizeRole(viewUser?.role)))}
                 </span>
@@ -887,27 +1003,29 @@ export function TeamPage() {
                 </Badge>
               </div>
 
-              <div className="text-xs text-muted-foreground mt-2">{viewUser?.lastActiveLabel || "Offline"}</div>
+              <div className="text-xs text-muted-foreground mt-2">
+                {viewUser?.lastActiveLabel || "Offline"}
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 pt-4 border-t border-border">
-            <div className="rounded-md border border-border p-3">
+          <div className={`grid grid-cols-2 ${compactMode ? "gap-2.5" : "gap-3"} pt-4 border-t border-border`}>
+            <div className={`rounded-md border border-border ${cardInnerPadding}`}>
               <div className="text-xs text-muted-foreground">Projects (count)</div>
-              <div className="text-xl font-medium text-card-foreground">
+              <div className={compactMode ? "text-lg font-medium text-card-foreground" : "text-xl font-medium text-card-foreground"}>
                 {typeof viewUser?.projectsCount === "number" ? viewUser.projectsCount : "—"}
               </div>
             </div>
-            <div className="rounded-md border border-border p-3">
+            <div className={`rounded-md border border-border ${cardInnerPadding}`}>
               <div className="text-xs text-muted-foreground">Tasks (count)</div>
-              <div className="text-xl font-medium text-card-foreground">
+              <div className={compactMode ? "text-lg font-medium text-card-foreground" : "text-xl font-medium text-card-foreground"}>
                 {typeof viewUser?.tasksCount === "number" ? viewUser.tasksCount : "—"}
               </div>
             </div>
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setViewOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setViewOpen(false)} className={buttonCompactClass}>
               Close
             </Button>
           </DialogFooter>
@@ -934,36 +1052,40 @@ export function TeamPage() {
           </DialogHeaderUI>
 
           {!canViewStats ? (
-            <div className="text-sm text-muted-foreground">
+            <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
               Your role can view only basic information. Ask Admin/PM for workload details.
             </div>
           ) : detailsLoading ? (
-            <div className="text-sm text-muted-foreground">Loading details...</div>
+            <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
+              Loading details...
+            </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <div className="rounded-md border border-border p-3">
+              <div className={`grid grid-cols-1 md:grid-cols-4 ${compactMode ? "gap-2.5" : "gap-3"}`}>
+                <div className={`rounded-md border border-border ${cardInnerPadding}`}>
                   <div className="text-xs text-muted-foreground">Projects</div>
-                  <div className="text-2xl font-semibold text-card-foreground mt-1">{detailsProjects.length}</div>
+                  <div className={metricValueClass}>{detailsProjects.length}</div>
                 </div>
 
-                <div className="rounded-md border border-border p-3">
+                <div className={`rounded-md border border-border ${cardInnerPadding}`}>
                   <div className="text-xs text-muted-foreground">Total Tasks</div>
-                  <div className="text-2xl font-semibold text-card-foreground mt-1">{detailsCounts.total}</div>
+                  <div className={metricValueClass}>{detailsCounts.total}</div>
                 </div>
 
-                <div className="rounded-md border border-border p-3">
+                <div className={`rounded-md border border-border ${cardInnerPadding}`}>
                   <div className="text-xs text-muted-foreground mb-2">Workload</div>
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-lg font-medium text-card-foreground">{detailsCounts.loadPct}%</div>
+                    <div className={compactMode ? "text-base font-medium text-card-foreground" : "text-lg font-medium text-card-foreground"}>
+                      {detailsCounts.loadPct}%
+                    </div>
                     <Badge variant={detailsCounts.risk.variant}>{detailsCounts.risk.label}</Badge>
                   </div>
                   <div className="mt-2">
-                    <Progress value={detailsCounts.loadPct} />
+                    <Progress value={detailsCounts.loadPct} className={progressHeight} />
                   </div>
                 </div>
 
-                <div className="rounded-md border border-border p-3">
+                <div className={`rounded-md border border-border ${cardInnerPadding}`}>
                   <div className="text-xs text-muted-foreground mb-2">Task Status</div>
                   <div className="text-sm text-muted-foreground space-y-1">
                     <div className="flex justify-between">
@@ -982,8 +1104,8 @@ export function TeamPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <div className="rounded-md border border-border p-3">
+              <div className={`grid grid-cols-1 md:grid-cols-2 ${dialogGridGap} mt-4`}>
+                <div className={`rounded-md border border-border ${cardInnerPadding}`}>
                   <div className="text-xs text-muted-foreground mb-2">Projects</div>
                   {detailsProjects.length > 0 ? (
                     <ul className="text-sm text-muted-foreground space-y-1 max-h-64 overflow-auto">
@@ -994,21 +1116,25 @@ export function TeamPage() {
                       ))}
                     </ul>
                   ) : (
-                    <div className="text-sm text-muted-foreground">No projects</div>
+                    <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
+                      No projects
+                    </div>
                   )}
                 </div>
 
-                <div className="rounded-md border border-border p-3">
+                <div className={`rounded-md border border-border ${cardInnerPadding}`}>
                   <div className="text-xs text-muted-foreground mb-2">Assigned Tasks</div>
                   {detailsTasks.length > 0 ? (
                     <ul className="text-sm text-muted-foreground space-y-2 max-h-64 overflow-auto">
                       {detailsTasks.map((t: any) => (
-                        <li key={t._id} className="border border-border rounded-md p-2">
+                        <li key={t._id} className={`border border-border rounded-md ${compactMode ? "p-2" : "p-2.5"}`}>
                           <div className="flex items-center justify-between gap-2">
                             <div className="font-medium truncate text-card-foreground" title={t.title}>
                               {t.title}
                             </div>
-                            <Badge variant={t.status === "done" ? "default" : "outline"}>{t.status}</Badge>
+                            <Badge variant={t.status === "done" ? "default" : "outline"}>
+                              {t.status}
+                            </Badge>
                           </div>
 
                           <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
@@ -1024,14 +1150,20 @@ export function TeamPage() {
                           {t?.dueDate ? (
                             <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
-                              {formatDateByPreference(t.dueDate, dateFormat)}
+                              {formatDateByPreference(
+                                t.dueDate,
+                                preferences.dateFormat,
+                                timezone
+                              )}
                             </div>
                           ) : null}
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <div className="text-sm text-muted-foreground">No tasks</div>
+                    <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
+                      No tasks
+                    </div>
                   )}
                 </div>
               </div>
@@ -1039,7 +1171,7 @@ export function TeamPage() {
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDetailsOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setDetailsOpen(false)} className={buttonCompactClass}>
               Close
             </Button>
           </DialogFooter>
@@ -1065,13 +1197,15 @@ export function TeamPage() {
           </DialogHeaderUI>
 
           {!canAssignTask ? (
-            <div className="text-sm text-muted-foreground">Only Admin / Project Manager can assign tasks.</div>
+            <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
+              Only Admin / Project Manager can assign tasks.
+            </div>
           ) : (
-            <div className="space-y-4 py-2">
+            <div className={dialogFieldSpacing}>
               <div className="space-y-2">
                 <Label>Project *</Label>
                 <Select value={assignProjectId} onValueChange={setAssignProjectId}>
-                  <SelectTrigger>
+                  <SelectTrigger className={selectTriggerCompactClass}>
                     <SelectValue placeholder={projectsLoading ? "Loading projects..." : "Select project"} />
                   </SelectTrigger>
                   <SelectContent>
@@ -1087,19 +1221,28 @@ export function TeamPage() {
 
               <div className="space-y-2">
                 <Label>Title *</Label>
-                <Input value={assignTitle} onChange={(e) => setAssignTitle(e.target.value)} placeholder="Task title" />
+                <Input
+                  value={assignTitle}
+                  onChange={(e) => setAssignTitle(e.target.value)}
+                  placeholder="Task title"
+                  className={inputCompactClass}
+                />
               </div>
 
               <div className="space-y-2">
                 <Label>Description</Label>
-                <Textarea rows={3} value={assignDescription} onChange={(e) => setAssignDescription(e.target.value)} />
+                <Textarea
+                  rows={textareaRows}
+                  value={assignDescription}
+                  onChange={(e) => setAssignDescription(e.target.value)}
+                />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className={`grid grid-cols-2 ${dialogGridGap}`}>
                 <div className="space-y-2">
                   <Label>Status</Label>
                   <Select value={assignStatus} onValueChange={(v) => setAssignStatus(v as TaskStatus)}>
-                    <SelectTrigger>
+                    <SelectTrigger className={selectTriggerCompactClass}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1113,7 +1256,7 @@ export function TeamPage() {
                 <div className="space-y-2">
                   <Label>Priority</Label>
                   <Select value={assignPriority} onValueChange={(v) => setAssignPriority(v as TaskPriority)}>
-                    <SelectTrigger>
+                    <SelectTrigger className={selectTriggerCompactClass}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -1128,16 +1271,21 @@ export function TeamPage() {
 
               <div className="space-y-2">
                 <Label>Due Date</Label>
-                <Input type="date" value={assignDueDate} onChange={(e) => setAssignDueDate(e.target.value)} />
+                <Input
+                  type="date"
+                  value={assignDueDate}
+                  onChange={(e) => setAssignDueDate(e.target.value)}
+                  className={inputCompactClass}
+                />
               </div>
             </div>
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setAssignOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setAssignOpen(false)} className={buttonCompactClass}>
               Cancel
             </Button>
-            <Button type="button" onClick={submitAssign} disabled={!canAssignTask || assigning}>
+            <Button type="button" onClick={submitAssign} disabled={!canAssignTask || assigning} className={buttonCompactClass}>
               {assigning ? "Assigning..." : "Assign Task"}
             </Button>
           </DialogFooter>
@@ -1161,27 +1309,27 @@ export function TeamPage() {
             </DialogDescription>
           </DialogHeaderUI>
 
-          <div className="space-y-4 py-2">
+          <div className={dialogFieldSpacing}>
             <div className="space-y-2">
               <Label>Name</Label>
-              <Input value={addName} onChange={(e) => setAddName(e.target.value)} placeholder="John Doe" />
+              <Input value={addName} onChange={(e) => setAddName(e.target.value)} placeholder="John Doe" className={inputCompactClass} />
             </div>
 
             <div className="space-y-2">
               <Label>Email</Label>
-              <Input value={addEmail} onChange={(e) => setAddEmail(e.target.value)} placeholder="john@company.com" />
+              <Input value={addEmail} onChange={(e) => setAddEmail(e.target.value)} placeholder="john@company.com" className={inputCompactClass} />
             </div>
 
             <div className="space-y-2">
               <Label>Temporary Password</Label>
-              <Input value={addPassword} onChange={(e) => setAddPassword(e.target.value)} placeholder="Set a password" />
+              <Input value={addPassword} onChange={(e) => setAddPassword(e.target.value)} placeholder="Set a password" className={inputCompactClass} />
             </div>
 
             {myRole === "admin" ? (
               <div className="space-y-2">
                 <Label>Role</Label>
-                <Select value={addRole} onValueChange={(v) => setAddRole(v as any)}>
-                  <SelectTrigger>
+                <Select value={addRole} onValueChange={(v) => setAddRole(v as Exclude<Role, "client">)}>
+                  <SelectTrigger className={selectTriggerCompactClass}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1192,17 +1340,17 @@ export function TeamPage() {
                 </Select>
               </div>
             ) : (
-              <div className="text-sm text-muted-foreground">
+              <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
                 Role: <span className="font-medium text-card-foreground">Team Member</span>
               </div>
             )}
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setAddOpen(false)} className={buttonCompactClass}>
               Cancel
             </Button>
-            <Button type="button" onClick={addMember} disabled={adding}>
+            <Button type="button" onClick={addMember} disabled={adding} className={buttonCompactClass}>
               {adding ? "Adding..." : "Add"}
             </Button>
           </DialogFooter>
@@ -1222,16 +1370,16 @@ export function TeamPage() {
             <DialogDescription>Change role (Admin only)</DialogDescription>
           </DialogHeaderUI>
 
-          <div className="space-y-4 py-2">
-            <div className="text-sm text-muted-foreground">
+          <div className={dialogFieldSpacing}>
+            <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
               <div className="font-medium text-card-foreground">{editingUser?.name}</div>
               <div className="text-xs text-muted-foreground">{editingUser?.email}</div>
             </div>
 
             <div className="space-y-2">
               <Label>Role</Label>
-              <Select value={editRole} onValueChange={(v) => setEditRole(v as any)}>
-                <SelectTrigger>
+              <Select value={editRole} onValueChange={(v) => setEditRole(v as Exclude<Role, "client">)}>
+                <SelectTrigger className={selectTriggerCompactClass}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1244,10 +1392,10 @@ export function TeamPage() {
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)} className={buttonCompactClass}>
               Cancel
             </Button>
-            <Button type="button" onClick={saveRole} disabled={saving}>
+            <Button type="button" onClick={saveRole} disabled={saving} className={buttonCompactClass}>
               {saving ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
@@ -1274,13 +1422,13 @@ export function TeamPage() {
             </DialogDescription>
           </DialogHeaderUI>
 
-          <div className="text-sm text-muted-foreground">
+          <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
             <div className="font-medium text-card-foreground">{confirmUser?.name}</div>
             <div className="text-xs text-muted-foreground">{confirmUser?.email}</div>
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)} className={buttonCompactClass}>
               Cancel
             </Button>
             <Button
@@ -1290,6 +1438,7 @@ export function TeamPage() {
                 return active ? "destructive" : "default";
               })()}
               onClick={toggleUser}
+              className={buttonCompactClass}
             >
               {(() => {
                 const active = typeof confirmUser?.isActive === "boolean" ? confirmUser.isActive : true;
@@ -1313,16 +1462,16 @@ export function TeamPage() {
             <DialogDescription>This permanently removes the user account.</DialogDescription>
           </DialogHeaderUI>
 
-          <div className="text-sm text-muted-foreground">
+          <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
             <div className="font-medium text-card-foreground">{deleteUser?.name}</div>
             <div className="text-xs text-muted-foreground">{deleteUser?.email}</div>
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} className={buttonCompactClass}>
               Cancel
             </Button>
-            <Button type="button" variant="destructive" onClick={doDeleteUser}>
+            <Button type="button" variant="destructive" onClick={doDeleteUser} className={buttonCompactClass}>
               Delete
             </Button>
           </DialogFooter>

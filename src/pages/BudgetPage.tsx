@@ -44,6 +44,7 @@ import {
 import { useUserPreferences } from "@/hooks/useUserPreferences";
 import { formatDateByPreference } from "@/lib/dateFormat";
 import { formatCurrency, formatCompactCurrency } from "@/lib/currency";
+import { mapTimezonePreference } from "@/lib/timezone";
 
 type BreakdownItem = { category: string; amount: number; percentage: number };
 
@@ -82,9 +83,9 @@ export function BudgetPage() {
   const [projects, setProjects] = useState<ProjectBudget[]>([]);
   const [recentExpenses, setRecentExpenses] = useState<Expense[]>([]);
   const [monthlySpending, setMonthlySpending] = useState<{ month: string; amount: number }[]>([]);
-  const [categoryDistribution, setCategoryDistribution] = useState<{ name: string; value: number; color: string }[]>(
-    []
-  );
+  const [categoryDistribution, setCategoryDistribution] = useState<
+    { name: string; value: number; color: string }[]
+  >([]);
 
   const [loading, setLoading] = useState({
     projects: true,
@@ -96,6 +97,11 @@ export function BudgetPage() {
 
   const { preferences, loadingPreferences } = useUserPreferences();
   const compactMode = preferences.compactMode;
+
+  const timezone = useMemo(
+    () => mapTimezonePreference(preferences.timezone),
+    [preferences.timezone]
+  );
 
   const [form, setForm] = useState({
     description: "",
@@ -110,12 +116,16 @@ export function BudgetPage() {
   const sectionSpacing = compactMode ? "space-y-4" : "space-y-6";
   const titleClass = compactMode ? "text-2xl font-semibold mb-1" : "text-3xl font-semibold mb-2";
   const subtitleClass = compactMode ? "text-sm text-muted-foreground" : "text-muted-foreground";
+  const topGap = compactMode ? "gap-3" : "gap-4";
+  const actionGap = compactMode ? "gap-2" : "gap-3";
   const gridGap = compactMode ? "gap-3" : "gap-4";
   const chartGridGap = compactMode ? "gap-4" : "gap-6";
   const cardHeaderPadding = compactMode ? "pb-2" : "pb-4";
   const cardTopPadding = compactMode ? "pt-4" : "pt-6";
   const cardTitleClass = compactMode ? "text-base" : "text-lg";
+  const metricLabelClass = compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground";
   const metricValueClass = compactMode ? "text-xl font-semibold mt-1" : "text-2xl font-semibold mt-1";
+  const helperTextClass = compactMode ? "text-[11px] text-muted-foreground mt-1" : "text-xs text-muted-foreground mt-1";
   const buttonCompactClass = compactMode ? "h-9 px-3" : "";
   const selectTriggerCompactClass = compactMode ? "h-9" : "";
   const dialogFieldSpacing = compactMode ? "space-y-3 py-2" : "space-y-4 py-4";
@@ -297,13 +307,17 @@ export function BudgetPage() {
     project.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const atRiskCount = computedProjects.filter((p) => p.budget > 0 && (p.spent / p.budget) * 100 > 90).length;
+  const atRiskCount = computedProjects.filter(
+    (p) => p.budget > 0 && (p.spent / p.budget) * 100 > 90
+  ).length;
 
   if (loadingPreferences) {
     return (
       <div className={`${pagePadding} bg-background text-foreground`}>
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className={`${cardTopPadding} text-muted-foreground`}>Loading budget page...</CardContent>
+          <CardContent className={`${cardTopPadding} text-muted-foreground`}>
+            Loading budget page...
+          </CardContent>
         </Card>
       </div>
     );
@@ -311,14 +325,19 @@ export function BudgetPage() {
 
   return (
     <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
-      <div className={`flex items-center justify-between flex-wrap ${gridGap}`}>
+      <div className={`flex items-center justify-between flex-wrap ${topGap}`}>
         <div>
           <h1 className={titleClass}>Budget Management</h1>
           <p className={subtitleClass}>Track expenses, allocations, and financial forecasts</p>
         </div>
 
-        <div className="flex gap-3">
-          <Button variant="outline" onClick={handleExport} disabled={loading.exporting} className={buttonCompactClass}>
+        <div className={`flex flex-wrap ${actionGap}`}>
+          <Button
+            variant="outline"
+            onClick={handleExport}
+            disabled={loading.exporting}
+            className={buttonCompactClass}
+          >
             <Download className="w-4 h-4 mr-2" />
             {loading.exporting ? "Exporting..." : "Export Report"}
           </Button>
@@ -356,7 +375,9 @@ export function BudgetPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="expense-amount">Amount ($)</Label>
+                  <Label htmlFor="expense-amount">
+                    Amount ({preferences.currency?.toUpperCase?.() || "USD"})
+                  </Label>
                   <Input
                     id="expense-amount"
                     type="number"
@@ -370,7 +391,10 @@ export function BudgetPage() {
                 <div className={`grid grid-cols-2 ${dialogGridGap}`}>
                   <div className="space-y-2">
                     <Label htmlFor="expense-project">Project</Label>
-                    <Select value={form.projectId} onValueChange={(v) => setForm((p) => ({ ...p, projectId: v }))}>
+                    <Select
+                      value={form.projectId}
+                      onValueChange={(v) => setForm((p) => ({ ...p, projectId: v }))}
+                    >
                       <SelectTrigger id="expense-project" className={selectTriggerCompactClass}>
                         <SelectValue placeholder="Select project" />
                       </SelectTrigger>
@@ -386,7 +410,10 @@ export function BudgetPage() {
 
                   <div className="space-y-2">
                     <Label htmlFor="expense-category">Category</Label>
-                    <Select value={form.category} onValueChange={(v) => setForm((p) => ({ ...p, category: v }))}>
+                    <Select
+                      value={form.category}
+                      onValueChange={(v) => setForm((p) => ({ ...p, category: v }))}
+                    >
                       <SelectTrigger id="expense-category" className={selectTriggerCompactClass}>
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
@@ -434,7 +461,11 @@ export function BudgetPage() {
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleAddExpense} disabled={loading.adding} className={buttonCompactClass}>
+                <Button
+                  onClick={handleAddExpense}
+                  disabled={loading.adding}
+                  className={buttonCompactClass}
+                >
                   {loading.adding ? "Adding..." : "Add Expense"}
                 </Button>
               </DialogFooter>
@@ -448,8 +479,10 @@ export function BudgetPage() {
           <CardContent className={cardTopPadding}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total Budget</p>
-                <p className={metricValueClass}>{formatCompactCurrency(totalBudget)}</p>
+                <p className={metricLabelClass}>Total Budget</p>
+                <p className={metricValueClass}>
+                  {formatCompactCurrency(totalBudget, preferences.currency)}
+                </p>
               </div>
               <DollarSign className={compactMode ? "w-7 h-7 text-blue-600" : "w-8 h-8 text-blue-600"} />
             </div>
@@ -460,9 +493,11 @@ export function BudgetPage() {
           <CardContent className={cardTopPadding}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Total Spent</p>
-                <p className={metricValueClass}>{formatCompactCurrency(totalSpent)}</p>
-                <p className="text-xs text-muted-foreground mt-1">{utilizationRate}% utilized</p>
+                <p className={metricLabelClass}>Total Spent</p>
+                <p className={metricValueClass}>
+                  {formatCompactCurrency(totalSpent, preferences.currency)}
+                </p>
+                <p className={helperTextClass}>{utilizationRate}% utilized</p>
               </div>
               <TrendingUp className={compactMode ? "w-7 h-7 text-green-600" : "w-8 h-8 text-green-600"} />
             </div>
@@ -473,9 +508,11 @@ export function BudgetPage() {
           <CardContent className={cardTopPadding}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Remaining</p>
-                <p className={metricValueClass}>{formatCompactCurrency(totalRemaining)}</p>
-                <p className="text-xs text-muted-foreground mt-1">{Math.max(0, 100 - utilizationRate)}% available</p>
+                <p className={metricLabelClass}>Remaining</p>
+                <p className={metricValueClass}>
+                  {formatCompactCurrency(totalRemaining, preferences.currency)}
+                </p>
+                <p className={helperTextClass}>{Math.max(0, 100 - utilizationRate)}% available</p>
               </div>
               <TrendingDown className={compactMode ? "w-7 h-7 text-purple-600" : "w-8 h-8 text-purple-600"} />
             </div>
@@ -486,9 +523,9 @@ export function BudgetPage() {
           <CardContent className={cardTopPadding}>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">At Risk</p>
+                <p className={metricLabelClass}>At Risk</p>
                 <p className={metricValueClass}>{atRiskCount}</p>
-                <p className="text-xs text-muted-foreground mt-1">Project over 90%</p>
+                <p className={helperTextClass}>Project over 90%</p>
               </div>
               <AlertTriangle className={compactMode ? "w-7 h-7 text-yellow-600" : "w-8 h-8 text-yellow-600"} />
             </div>
@@ -517,15 +554,20 @@ export function BudgetPage() {
 
           {loading.projects ? (
             <Card className="border-border bg-card text-card-foreground">
-              <CardContent className={`${cardTopPadding} text-muted-foreground`}>Loading budgets...</CardContent>
+              <CardContent className={`${cardTopPadding} text-muted-foreground`}>
+                Loading budgets...
+              </CardContent>
             </Card>
           ) : filteredProjects.length === 0 ? (
             <Card className="border-border bg-card text-card-foreground">
-              <CardContent className={`${cardTopPadding} text-muted-foreground`}>No projects found.</CardContent>
+              <CardContent className={`${cardTopPadding} text-muted-foreground`}>
+                No projects found.
+              </CardContent>
             </Card>
           ) : (
             filteredProjects.map((project) => {
-              const percentageUsed = project.budget > 0 ? Math.round((project.spent / project.budget) * 100) : 0;
+              const percentageUsed =
+                project.budget > 0 ? Math.round((project.spent / project.budget) * 100) : 0;
               const isOverBudget = project.budget > 0 && project.forecastedTotal > project.budget;
               const expenseBreakdown = Array.isArray(project.expenses) ? project.expenses : [];
 
@@ -535,7 +577,7 @@ export function BudgetPage() {
                   className="border-border bg-card text-card-foreground hover:shadow-lg transition-shadow"
                 >
                   <CardHeader className={cardHeaderPadding}>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <CardTitle className={cardTitleClass}>{project.name}</CardTitle>
                       <Badge
                         variant={
@@ -556,19 +598,19 @@ export function BudgetPage() {
                       <div>
                         <p className="text-muted-foreground">Budget</p>
                         <p className={compactMode ? "text-base font-medium text-card-foreground" : "text-lg font-medium text-card-foreground"}>
-                          {formatCurrency(project.budget)}
+                          {formatCurrency(project.budget, preferences.currency)}
                         </p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Spent</p>
                         <p className={compactMode ? "text-base font-medium text-card-foreground" : "text-lg font-medium text-card-foreground"}>
-                          {formatCurrency(project.spent)}
+                          {formatCurrency(project.spent, preferences.currency)}
                         </p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Remaining</p>
                         <p className={compactMode ? "text-base font-medium text-card-foreground" : "text-lg font-medium text-card-foreground"}>
-                          {formatCurrency(project.remaining)}
+                          {formatCurrency(project.remaining, preferences.currency)}
                         </p>
                       </div>
                     </div>
@@ -580,37 +622,56 @@ export function BudgetPage() {
                       </div>
                       <Progress
                         value={percentageUsed}
-                        className={`${progressHeight} ${percentageUsed > 90 ? "bg-red-100 dark:bg-red-950" : ""}`}
+                        className={`${progressHeight} ${
+                          percentageUsed > 90 ? "bg-red-100 dark:bg-red-950" : ""
+                        }`}
                       />
                     </div>
 
                     {isOverBudget && (
-                      <div className={`${compactMode ? "p-2.5" : "p-3"} bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900 rounded-lg flex items-start gap-2`}>
+                      <div
+                        className={`${
+                          compactMode ? "p-2.5" : "p-3"
+                        } bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900 rounded-lg flex items-start gap-2`}
+                      >
                         <AlertTriangle className="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5" />
                         <div className="text-sm">
                           <p className="text-yellow-900 dark:text-yellow-200">
-                            Forecasted total: {formatCurrency(project.forecastedTotal)}
+                            Forecasted total:{" "}
+                            {formatCurrency(project.forecastedTotal, preferences.currency)}
                           </p>
                           <p className="text-yellow-700 dark:text-yellow-300">
-                            Projected to exceed budget by {formatCurrency(project.forecastedTotal - project.budget)}
+                            Projected to exceed budget by{" "}
+                            {formatCurrency(
+                              project.forecastedTotal - project.budget,
+                              preferences.currency
+                            )}
                           </p>
                         </div>
                       </div>
                     )}
 
                     <div className="pt-4 border-t border-border">
-                      <h4 className="text-sm font-medium text-card-foreground mb-3">Expense Breakdown</h4>
+                      <h4 className="text-sm font-medium text-card-foreground mb-3">
+                        Expense Breakdown
+                      </h4>
 
                       {expenseBreakdown.length === 0 ? (
-                        <div className="text-sm text-muted-foreground">No expenses recorded yet.</div>
+                        <div className="text-sm text-muted-foreground">
+                          No expenses recorded yet.
+                        </div>
                       ) : (
                         <div className={compactMode ? "space-y-1.5" : "space-y-2"}>
                           {expenseBreakdown.map((expense, idx) => (
                             <div key={idx} className="flex items-center justify-between text-sm">
                               <span className="text-muted-foreground">{expense.category}</span>
                               <div className="flex items-center gap-2">
-                                <span className="text-card-foreground">{formatCurrency(expense.amount)}</span>
-                                <span className="text-muted-foreground">({expense.percentage.toFixed(1)}%)</span>
+                                <span className="text-card-foreground">
+                                  {formatCurrency(expense.amount, preferences.currency)}
+                                </span>
+                                <span className="text-muted-foreground">
+                                  ({expense.percentage.toFixed(1)}%)
+                                </span>
                               </div>
                             </div>
                           ))}
@@ -643,23 +704,45 @@ export function BudgetPage() {
                       className={`flex items-center justify-between ${expenseRowPadding} border border-border rounded-lg hover:border-primary/40 transition-colors`}
                     >
                       <div className="flex-1">
-                        <h4 className={compactMode ? "text-sm font-medium text-card-foreground" : "text-card-foreground font-medium"}>
+                        <h4
+                          className={
+                            compactMode
+                              ? "text-sm font-medium text-card-foreground"
+                              : "text-card-foreground font-medium"
+                          }
+                        >
                           {expense.description || "-"}
                         </h4>
-                        <div className={`flex items-center ${compactMode ? "gap-3" : "gap-4"} mt-1 text-sm text-muted-foreground flex-wrap`}>
+                        <div
+                          className={`flex items-center ${
+                            compactMode ? "gap-3" : "gap-4"
+                          } mt-1 text-sm text-muted-foreground flex-wrap`}
+                        >
                           <Badge variant="outline">{expense.projectName || "Project"}</Badge>
                           <Badge variant="secondary">{expense.category || "Category"}</Badge>
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
-                            {formatDateByPreference(expense.date, preferences.dateFormat)}
+                            {formatDateByPreference(
+                              expense.date,
+                              preferences.dateFormat,
+                              timezone
+                            )}
                           </span>
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className={compactMode ? "text-base font-medium text-card-foreground" : "text-lg font-medium text-card-foreground"}>
-                          {formatCurrency(Number(expense.amount || 0))}
+                        <p
+                          className={
+                            compactMode
+                              ? "text-base font-medium text-card-foreground"
+                              : "text-lg font-medium text-card-foreground"
+                          }
+                        >
+                          {formatCurrency(Number(expense.amount || 0), preferences.currency)}
                         </p>
-                        <p className="text-xs text-muted-foreground">Approved by {expense.approvedByName || "—"}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Approved by {expense.approvedByName || "—"}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -683,7 +766,12 @@ export function BudgetPage() {
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" />
                       <YAxis stroke="hsl(var(--muted-foreground))" />
-                      <Tooltip contentStyle={chartTooltipStyle} />
+                      <Tooltip
+                        contentStyle={chartTooltipStyle}
+                        formatter={(value: number) =>
+                          formatCurrency(Number(value || 0), preferences.currency)
+                        }
+                      />
                       <Line type="monotone" dataKey="amount" stroke="#3b82f6" strokeWidth={2} />
                     </LineChart>
                   </ResponsiveContainer>
@@ -710,22 +798,31 @@ export function BudgetPage() {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, value }) => `${name}: ${formatCurrency(Number(value))}`}
+                        label={({ name, value }) =>
+                          `${name}: ${formatCurrency(Number(value), preferences.currency)}`
+                        }
                         outerRadius={pieOuterRadius}
                         dataKey="value"
                       >
                         {categoryDistribution.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={(entry as any).color} />
+                          <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip contentStyle={chartTooltipStyle} />
+                      <Tooltip
+                        contentStyle={chartTooltipStyle}
+                        formatter={(value: number) =>
+                          formatCurrency(Number(value || 0), preferences.currency)
+                        }
+                      />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
                 {loading.analytics ? (
                   <div className="text-sm text-muted-foreground mt-3">Loading analytics...</div>
                 ) : categoryDistribution.length === 0 ? (
-                  <div className="text-sm text-muted-foreground mt-3">No category distribution yet.</div>
+                  <div className="text-sm text-muted-foreground mt-3">
+                    No category distribution yet.
+                  </div>
                 ) : null}
               </CardContent>
             </Card>

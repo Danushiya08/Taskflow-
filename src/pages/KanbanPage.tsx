@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import api from "@/lib/api";
 import { useUserPreferences } from "@/hooks/useUserPreferences";
 import { formatDateByPreference } from "@/lib/dateFormat";
+import { mapTimezonePreference } from "@/lib/timezone";
 
 type Project = { _id: string; name: string };
 
@@ -54,6 +55,12 @@ export function KanbanPage() {
   const [loading, setLoading] = useState(false);
 
   const { preferences, loadingPreferences } = useUserPreferences();
+  const compactMode = preferences.compactMode;
+
+  const timezone = useMemo(
+    () => mapTimezonePreference(preferences.timezone),
+    [preferences.timezone]
+  );
 
   const columns = [
     { id: "backlog", title: "Backlog" },
@@ -186,17 +193,42 @@ export function KanbanPage() {
 
   const doneCount = tasksByColumn.done.length;
 
+  const pagePadding = compactMode ? "p-4" : "p-6";
+  const sectionSpacing = compactMode ? "space-y-4" : "space-y-6";
+  const titleClass = compactMode ? "text-2xl font-semibold mb-1" : "text-3xl font-semibold mb-2";
+  const subtitleClass = compactMode ? "text-sm text-muted-foreground" : "text-muted-foreground";
+  const topGap = compactMode ? "gap-3" : "gap-4";
+  const filterWidth = compactMode ? "w-56" : "w-64";
+  const selectTriggerCompactClass = compactMode ? "h-9" : "";
+  const summaryGridGap = compactMode ? "gap-3" : "gap-4";
+  const summaryCardPadding = compactMode ? "pt-4" : "pt-6";
+  const summaryLabelClass = compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground";
+  const summaryValueClass = compactMode ? "text-xl font-semibold mt-1" : "text-2xl font-semibold mt-1";
+  const boardGap = compactMode ? "gap-3" : "gap-4";
+  const columnHeaderPadding = compactMode ? "p-2.5" : "p-3";
+  const columnBodyPadding = compactMode ? "p-2.5 space-y-2.5" : "p-3 space-y-3";
+  const columnMinWidth = compactMode ? "min-w-72" : "min-w-80";
+  const iconButtonCompactClass = compactMode ? "h-8 w-8 p-0" : "h-6 w-6";
+  const taskCardPadding = compactMode ? "p-3" : "p-4";
+  const taskStackSpacing = compactMode ? "space-y-2.5" : "space-y-3";
+  const taskTitleClass = compactMode
+    ? "text-xs font-medium text-card-foreground flex-1"
+    : "text-sm font-medium text-card-foreground flex-1";
+  const badgeTextClass = compactMode ? "text-[10px]" : "text-xs";
+  const metaTextClass = compactMode ? "text-[11px] text-muted-foreground" : "text-xs text-muted-foreground";
+  const footerPadding = compactMode ? "p-3" : "p-4";
+
   return (
-    <div className="p-6 space-y-6 h-full flex flex-col bg-background text-foreground">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <div className={`${pagePadding} ${sectionSpacing} h-full flex flex-col bg-background text-foreground`}>
+      <div className={`flex items-center justify-between flex-wrap ${topGap}`}>
         <div>
-          <h1 className="text-3xl font-semibold mb-2">Kanban Board</h1>
-          <p className="text-muted-foreground">Drag and drop tasks to update their status</p>
+          <h1 className={titleClass}>Kanban Board</h1>
+          <p className={subtitleClass}>Drag and drop tasks to update their status</p>
         </div>
 
         <div className="flex items-center gap-3">
           <Select value={selectedProject} onValueChange={setSelectedProject}>
-            <SelectTrigger className="w-64">
+            <SelectTrigger className={`${filterWidth} ${selectTriggerCompactClass}`}>
               <Filter className="w-4 h-4 mr-2" />
               <SelectValue />
             </SelectTrigger>
@@ -212,16 +244,20 @@ export function KanbanPage() {
         </div>
       </div>
 
-      <div className={`grid gap-4 ${visibleColumns.length === 5 ? "grid-cols-5" : "grid-cols-4"}`}>
+      <div
+        className={`grid ${summaryGridGap} ${
+          visibleColumns.length === 5 ? "grid-cols-5" : "grid-cols-4"
+        }`}
+      >
         {visibleColumns.map((column) => {
           const count = tasksByColumn[column.id]?.length || 0;
 
           return (
             <Card key={column.id} className="border-border bg-card text-card-foreground">
-              <CardContent className="pt-6">
+              <CardContent className={summaryCardPadding}>
                 <div className="text-center">
-                  <p className="text-sm text-muted-foreground">{column.title}</p>
-                  <p className="text-2xl font-semibold mt-1">{count}</p>
+                  <p className={summaryLabelClass}>{column.title}</p>
+                  <p className={summaryValueClass}>{count}</p>
                 </div>
               </CardContent>
             </Card>
@@ -229,32 +265,36 @@ export function KanbanPage() {
         })}
       </div>
 
-      <div className="flex-1 flex gap-4 overflow-x-auto pb-4">
+      <div className={`flex-1 flex ${boardGap} overflow-x-auto pb-4`}>
         {visibleColumns.map((column) => (
-          <div key={column.id} className="flex-1 min-w-80 flex flex-col">
-            <div className={`${COLUMN_STYLES[column.id]} p-3 rounded-t-lg border-b border-border`}>
+          <div key={column.id} className={`flex-1 ${columnMinWidth} flex flex-col`}>
+            <div className={`${COLUMN_STYLES[column.id]} ${columnHeaderPadding} rounded-t-lg border-b border-border`}>
               <div className="flex items-center justify-between">
-                <h3 className="font-medium text-foreground">
+                <h3 className={compactMode ? "text-sm font-medium text-foreground" : "font-medium text-foreground"}>
                   {column.title}
-                  <span className="ml-2 text-sm text-muted-foreground">
+                  <span className={`ml-2 ${metaTextClass}`}>
                     ({tasksByColumn[column.id]?.length || 0})
                   </span>
                 </h3>
-                <Button variant="ghost" size="icon" className="h-6 w-6">
+                <Button variant="ghost" size="icon" className={iconButtonCompactClass}>
                   <Plus className="w-4 h-4" />
                 </Button>
               </div>
             </div>
 
             <div
-              className="flex-1 bg-muted/40 p-3 space-y-3 overflow-y-auto rounded-b-lg border-x border-b border-border"
+              className={`flex-1 bg-muted/40 ${columnBodyPadding} overflow-y-auto rounded-b-lg border-x border-b border-border`}
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, column.id)}
             >
               {loading || loadingPreferences ? (
-                <div className="text-sm text-muted-foreground">Loading tasks...</div>
+                <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
+                  Loading tasks...
+                </div>
               ) : (tasksByColumn[column.id] || []).length === 0 ? (
-                <div className="text-sm text-muted-foreground">No tasks</div>
+                <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
+                  No tasks
+                </div>
               ) : (
                 tasksByColumn[column.id].map((task) => {
                   const assignee = task.assignee || task.assignedTo;
@@ -267,30 +307,28 @@ export function KanbanPage() {
                       onDragStart={(e) => handleDragStart(e, task._id, column.id)}
                       className="cursor-move hover:shadow-lg transition-shadow border-border bg-card text-card-foreground"
                     >
-                      <CardContent className="p-4">
-                        <div className="space-y-3">
+                      <CardContent className={taskCardPadding}>
+                        <div className={taskStackSpacing}>
                           <div className="flex items-start justify-between gap-2">
-                            <h4 className="text-sm font-medium text-card-foreground flex-1">
-                              {task.title}
-                            </h4>
-                            <Button variant="ghost" size="icon" className="h-6 w-6">
+                            <h4 className={taskTitleClass}>{task.title}</h4>
+                            <Button variant="ghost" size="icon" className={iconButtonCompactClass}>
                               <MoreVertical className="w-3 h-3" />
                             </Button>
                           </div>
 
                           <div className="flex flex-wrap gap-2">
-                            <Badge variant={getPriorityColor(task.priority)} className="text-xs">
+                            <Badge variant={getPriorityColor(task.priority)} className={badgeTextClass}>
                               {task.priority || "priority"}
                             </Badge>
                             {(task.tags || []).map((tag, idx) => (
-                              <Badge key={idx} variant="outline" className="text-xs">
+                              <Badge key={idx} variant="outline" className={badgeTextClass}>
                                 {tag}
                               </Badge>
                             ))}
                           </div>
 
                           <div className="flex items-center justify-between pt-2 border-t border-border">
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            <div className={`flex items-center gap-3 ${metaTextClass}`}>
                               <div className="flex items-center gap-1">
                                 <MessageSquare className="w-3 h-3" />
                                 {task.commentsCount || 0}
@@ -301,16 +339,20 @@ export function KanbanPage() {
                               </div>
                             </div>
 
-                            <Avatar className="h-6 w-6">
+                            <Avatar className={compactMode ? "h-5 w-5" : "h-6 w-6"}>
                               <AvatarImage src={assignee?.avatar || ""} />
                               <AvatarFallback>{displayName[0]}</AvatarFallback>
                             </Avatar>
                           </div>
 
                           {task.dueDate ? (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <div className={`flex items-center gap-1 ${metaTextClass}`}>
                               <Calendar className="w-3 h-3" />
-                              {formatDateByPreference(task.dueDate, preferences.dateFormat)}
+                              {formatDateByPreference(
+                                task.dueDate,
+                                preferences.dateFormat,
+                                timezone
+                              )}
                             </div>
                           ) : null}
                         </div>
@@ -324,11 +366,11 @@ export function KanbanPage() {
         ))}
       </div>
 
-      <div className="flex items-center justify-between bg-card p-4 rounded-lg border border-border text-card-foreground">
-        <div className="text-sm text-muted-foreground">
+      <div className={`flex items-center justify-between bg-card ${footerPadding} rounded-lg border border-border text-card-foreground`}>
+        <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
           Total Tasks: <span className="text-card-foreground font-medium">{totalTasks}</span>
         </div>
-        <div className="text-sm text-muted-foreground">
+        <div className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
           Completion Rate:{" "}
           <span className="text-card-foreground font-medium">
             {totalTasks > 0 ? Math.round((doneCount / totalTasks) * 100) : 0}%

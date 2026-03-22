@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,7 +18,15 @@ import {
   Users,
   Target,
 } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 import api from "@/lib/api";
 import { ProjectAssistant } from "@/components/ProjectAssistant";
@@ -77,6 +91,22 @@ export function ClientDashboard() {
   const { preferences, loadingPreferences } = useUserPreferences();
   const compactMode = preferences.compactMode;
 
+  const formatCurrency = useMemo(() => {
+    const currency = preferences.currency || "USD";
+
+    return (amount: number) => {
+      try {
+        return new Intl.NumberFormat(undefined, {
+          style: "currency",
+          currency,
+          maximumFractionDigits: 0,
+        }).format(Number(amount || 0));
+      } catch {
+        return Number(amount || 0).toLocaleString();
+      }
+    };
+  }, [preferences.currency]);
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -115,12 +145,16 @@ export function ClientDashboard() {
         name: p.name,
         progress: Math.max(0, Math.min(100, Number(p.progress ?? 0))),
         status: toHealthStatus(p),
-        deadline: p.dueDate ? formatDateByPreference(p.dueDate, preferences.dateFormat) : undefined,
-        dueDate: p.dueDate ? formatDateByPreference(p.dueDate, preferences.dateFormat) : undefined,
+        deadline: p.dueDate
+          ? formatDateByPreference(p.dueDate, preferences.dateFormat)
+          : undefined,
+        dueDate: p.dueDate
+          ? formatDateByPreference(p.dueDate, preferences.dateFormat)
+          : undefined,
         tasks: { total, completed },
         teamCount: Array.isArray(p.members) ? p.members.length : 0,
-        budget: `$${Number(p.budget?.allocated ?? 0).toLocaleString()}`,
-        spent: `$${Number(p.budget?.spent ?? 0).toLocaleString()}`,
+        budget: formatCurrency(Number(p.budget?.allocated ?? 0)),
+        spent: formatCurrency(Number(p.budget?.spent ?? 0)),
         phase:
           p.status === "planning"
             ? "Planning"
@@ -131,7 +165,7 @@ export function ClientDashboard() {
             : "Completed",
       };
     });
-  }, [projectsRaw, tasksRaw, preferences.dateFormat]);
+  }, [projectsRaw, tasksRaw, preferences.dateFormat, formatCurrency]);
 
   const clientTasks: Task[] = useMemo(() => {
     return tasksRaw.map((t) => {
@@ -145,7 +179,9 @@ export function ClientDashboard() {
         project: projectName,
         priority: t.priority,
         status: mapTaskStatus(t.status),
-        dueDate: t.dueDate ? formatDateByPreference(t.dueDate, preferences.dateFormat) : undefined,
+        dueDate: t.dueDate
+          ? formatDateByPreference(t.dueDate, preferences.dateFormat)
+          : undefined,
         progress,
       };
     });
@@ -171,13 +207,13 @@ export function ClientDashboard() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "on-track":
-        return "bg-green-100 text-green-700";
+        return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300";
       case "at-risk":
-        return "bg-yellow-100 text-yellow-700";
+        return "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300";
       case "delayed":
-        return "bg-red-100 text-red-700";
+        return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300";
       default:
-        return "bg-gray-100 text-gray-700";
+        return "bg-muted text-muted-foreground";
     }
   };
 
@@ -189,9 +225,9 @@ export function ClientDashboard() {
       case "in-progress":
         return <Clock className={`${iconClass} text-blue-600`} />;
       case "upcoming":
-        return <Calendar className={`${iconClass} text-gray-400`} />;
+        return <Calendar className={`${iconClass} text-muted-foreground`} />;
       default:
-        return <Calendar className={`${iconClass} text-gray-400`} />;
+        return <Calendar className={`${iconClass} text-muted-foreground`} />;
     }
   };
 
@@ -217,10 +253,14 @@ export function ClientDashboard() {
   const gridGap = compactMode ? "gap-4" : "gap-6";
   const cardHeaderPadding = compactMode ? "pb-2" : "pb-4";
   const cardTopPadding = compactMode ? "pt-4" : "pt-6";
-  const titleClass = compactMode ? "text-2xl font-semibold text-gray-900" : "text-3xl text-gray-900";
-  const subtitleClass = compactMode ? "text-sm text-gray-600" : "text-gray-600";
+  const titleClass = compactMode
+    ? "text-2xl font-semibold text-foreground"
+    : "text-3xl font-semibold text-foreground";
+  const subtitleClass = compactMode ? "text-sm text-muted-foreground" : "text-muted-foreground";
   const cardTitleClass = compactMode ? "text-base" : "text-lg";
-  const metricValueClass = compactMode ? "text-xl text-gray-900 font-semibold" : "text-2xl text-gray-900";
+  const metricValueClass = compactMode
+    ? "text-xl font-semibold text-foreground"
+    : "text-2xl font-semibold text-foreground";
   const chartHeight = compactMode ? 220 : 256;
   const progressHeight = compactMode ? "h-2" : "h-3";
   const listSpacing = compactMode ? "space-y-3" : "space-y-4";
@@ -230,7 +270,7 @@ export function ClientDashboard() {
 
   if (loading || loadingPreferences) {
     return (
-      <div className={`${pagePadding} ${sectionSpacing}`}>
+      <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
         <h1 className={titleClass}>Client Portal</h1>
         <p className={subtitleClass}>Loading your projects...</p>
       </div>
@@ -239,10 +279,12 @@ export function ClientDashboard() {
 
   if (errMsg) {
     return (
-      <div className={`${pagePadding} ${sectionSpacing}`}>
+      <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
         <h1 className={titleClass}>Client Portal</h1>
-        <div className="p-4 rounded border border-red-200 bg-red-50 text-red-700">{errMsg}</div>
-        <p className="text-sm text-gray-600">
+        <div className="p-4 rounded border border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          {errMsg}
+        </div>
+        <p className="text-sm text-muted-foreground">
           Check backend logs for: <span className="font-mono">GET /projects</span> and{" "}
           <span className="font-mono">GET /api/projects/&lt;projectId&gt;/tasks</span>
         </p>
@@ -251,56 +293,56 @@ export function ClientDashboard() {
   }
 
   return (
-    <div className={`${pagePadding} ${sectionSpacing}`}>
+    <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
       <div>
         <h1 className={titleClass}>Client Portal</h1>
         <p className={subtitleClass}>View your project progress and updates</p>
       </div>
 
       <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 ${gridGap}`}>
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Active Projects</CardTitle>
-            <Target className="w-4 h-4 text-gray-600" />
+            <Target className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className={cardTopPadding}>
             <div className={metricValueClass}>{stats.active}</div>
-            <p className="text-xs text-gray-600 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               {stats.onTrack} on track, {stats.atRisk} need attention
             </p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Overall Progress</CardTitle>
-            <TrendingUp className="w-4 h-4 text-gray-600" />
+            <TrendingUp className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className={cardTopPadding}>
             <div className={metricValueClass}>{stats.top ? `${stats.top.progress}%` : "—"}</div>
-            <p className="text-xs text-gray-600 mt-1">{stats.top?.name ?? "No projects"}</p>
+            <p className="text-xs text-muted-foreground mt-1">{stats.top?.name ?? "No projects"}</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Team Members</CardTitle>
-            <Users className="w-4 h-4 text-gray-600" />
+            <Users className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className={cardTopPadding}>
             <div className={metricValueClass}>{stats.teamMembers}</div>
-            <p className="text-xs text-gray-600 mt-1">Across your projects</p>
+            <p className="text-xs text-muted-foreground mt-1">Across your projects</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Documents</CardTitle>
-            <FileText className="w-4 h-4 text-gray-600" />
+            <FileText className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className={cardTopPadding}>
             <div className={metricValueClass}>—</div>
-            <p className="text-xs text-gray-600 mt-1">Hook later to your docs module</p>
+            <p className="text-xs text-muted-foreground mt-1">Hook later to your docs module</p>
           </CardContent>
         </Card>
       </div>
@@ -315,7 +357,7 @@ export function ClientDashboard() {
 
       <div className={`grid grid-cols-1 lg:grid-cols-2 ${gridGap}`}>
         {myProjects.map((project) => (
-          <Card key={project.id}>
+          <Card key={project.id} className="border-border bg-card text-card-foreground">
             <CardHeader className={cardHeaderPadding}>
               <div className="flex items-start justify-between">
                 <div>
@@ -331,39 +373,40 @@ export function ClientDashboard() {
                 </Badge>
               </div>
             </CardHeader>
+
             <CardContent className={compactMode ? "space-y-3" : "space-y-4"}>
               <div className={compactMode ? "space-y-1.5" : "space-y-2"}>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-600">Overall Progress</span>
-                  <span className="text-gray-900">{project.progress}%</span>
+                  <span className="text-muted-foreground">Overall Progress</span>
+                  <span className="text-card-foreground">{project.progress}%</span>
                 </div>
                 <Progress value={project.progress} className={progressHeight} />
               </div>
 
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-gray-600">Deadline</p>
-                  <p className="text-gray-900">{project.deadline ?? "—"}</p>
+                  <p className="text-muted-foreground">Deadline</p>
+                  <p className="text-card-foreground">{project.deadline ?? "—"}</p>
                 </div>
                 <div>
-                  <p className="text-gray-600">Tasks</p>
-                  <p className="text-gray-900">
+                  <p className="text-muted-foreground">Tasks</p>
+                  <p className="text-card-foreground">
                     {project.tasks?.completed ?? 0}/{project.tasks?.total ?? 0}
                   </p>
                 </div>
                 <div>
-                  <p className="text-gray-600">Budget</p>
-                  <p className="text-gray-900">{project.budget ?? "—"}</p>
+                  <p className="text-muted-foreground">Budget</p>
+                  <p className="text-card-foreground">{project.budget ?? "—"}</p>
                 </div>
                 <div>
-                  <p className="text-gray-600">Spent</p>
-                  <p className="text-gray-900">{project.spent ?? "—"}</p>
+                  <p className="text-muted-foreground">Spent</p>
+                  <p className="text-card-foreground">{project.spent ?? "—"}</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
-                <Users className="w-4 h-4 text-gray-600" />
-                <span className="text-sm text-gray-600">
+              <div className="flex items-center gap-2 pt-2 border-t border-border">
+                <Users className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">
                   {project.teamCount ?? 0} team members assigned
                 </span>
               </div>
@@ -373,7 +416,7 @@ export function ClientDashboard() {
       </div>
 
       <div className={`grid grid-cols-1 lg:grid-cols-2 ${gridGap}`}>
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={cardHeaderPadding}>
             <CardTitle className={cardTitleClass}>Project Progress</CardTitle>
             <CardDescription>Live progress snapshot</CardDescription>
@@ -399,7 +442,7 @@ export function ClientDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={cardHeaderPadding}>
             <CardTitle className={cardTitleClass}>Milestones</CardTitle>
             <CardDescription>Template milestones (connect later)</CardDescription>
@@ -411,10 +454,10 @@ export function ClientDashboard() {
                   {getMilestoneIcon(milestone.status, compactMode)}
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <p className="text-sm text-gray-900">{milestone.name}</p>
-                      <span className="text-xs text-gray-600">{milestone.date}</span>
+                      <p className="text-sm text-card-foreground">{milestone.name}</p>
+                      <span className="text-xs text-muted-foreground">{milestone.date}</span>
                     </div>
-                    <p className="text-xs text-gray-500 capitalize">
+                    <p className="text-xs text-muted-foreground capitalize">
                       {milestone.status.replace("-", " ")}
                     </p>
                   </div>
@@ -425,7 +468,7 @@ export function ClientDashboard() {
         </Card>
       </div>
 
-      <Card>
+      <Card className="border-border bg-card text-card-foreground">
         <CardHeader className={cardHeaderPadding}>
           <CardTitle className={cardTitleClass}>Recent Updates</CardTitle>
           <CardDescription>Latest updates</CardDescription>
@@ -433,7 +476,10 @@ export function ClientDashboard() {
         <CardContent>
           <div className={listSpacing}>
             {recentUpdates.map((update, index) => (
-              <div key={index} className={`flex items-start gap-4 ${boxPadding} bg-gray-50 rounded-lg`}>
+              <div
+                key={index}
+                className={`flex items-start gap-4 ${boxPadding} bg-muted/40 rounded-lg`}
+              >
                 <div className="mt-1">
                   {update.type === "milestone" && <Target className="w-5 h-5 text-blue-600" />}
                   {update.type === "document" && <FileText className="w-5 h-5 text-green-600" />}
@@ -442,11 +488,13 @@ export function ClientDashboard() {
                 <div className="flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h4 className="text-sm text-gray-900 mb-1">{update.title}</h4>
-                      <p className="text-xs text-gray-600 mb-1">{update.project}</p>
-                      <p className="text-xs text-gray-600">{update.description}</p>
+                      <h4 className="text-sm text-card-foreground mb-1">{update.title}</h4>
+                      <p className="text-xs text-muted-foreground mb-1">{update.project}</p>
+                      <p className="text-xs text-muted-foreground">{update.description}</p>
                     </div>
-                    <span className="text-xs text-gray-500 whitespace-nowrap">{update.date}</span>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      {update.date}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -455,27 +503,29 @@ export function ClientDashboard() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-border bg-card text-card-foreground">
         <CardHeader className={cardHeaderPadding}>
           <CardTitle className={cardTitleClass}>Quick Actions</CardTitle>
           <CardDescription>Common tasks and resources</CardDescription>
         </CardHeader>
         <CardContent>
           <div className={`grid grid-cols-1 md:grid-cols-3 ${gridGap}`}>
-            <button className={`${quickActionPadding} bg-blue-50 hover:bg-blue-100 rounded-lg text-left transition-colors`}>
+            <button className={`${quickActionPadding} bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-950/50 rounded-lg text-left transition-colors`}>
               <FileText className="w-6 h-6 text-blue-600 mb-2" />
-              <h4 className="text-sm text-gray-900 mb-1">View Reports</h4>
-              <p className="text-xs text-gray-600">Connect later to documents module</p>
+              <h4 className="text-sm text-card-foreground mb-1">View Reports</h4>
+              <p className="text-xs text-muted-foreground">Connect later to documents module</p>
             </button>
-            <button className={`${quickActionPadding} bg-green-50 hover:bg-green-100 rounded-lg text-left transition-colors`}>
+
+            <button className={`${quickActionPadding} bg-green-50 dark:bg-green-950/30 hover:bg-green-100 dark:hover:bg-green-950/50 rounded-lg text-left transition-colors`}>
               <Calendar className="w-6 h-6 text-green-600 mb-2" />
-              <h4 className="text-sm text-gray-900 mb-1">Schedule Meeting</h4>
-              <p className="text-xs text-gray-600">Connect later to meetings module</p>
+              <h4 className="text-sm text-card-foreground mb-1">Schedule Meeting</h4>
+              <p className="text-xs text-muted-foreground">Connect later to meetings module</p>
             </button>
-            <button className={`${quickActionPadding} bg-purple-50 hover:bg-purple-100 rounded-lg text-left transition-colors`}>
+
+            <button className={`${quickActionPadding} bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-950/50 rounded-lg text-left transition-colors`}>
               <AlertCircle className="w-6 h-6 text-purple-600 mb-2" />
-              <h4 className="text-sm text-gray-900 mb-1">Submit Feedback</h4>
-              <p className="text-xs text-gray-600">Connect later to feedback module</p>
+              <h4 className="text-sm text-card-foreground mb-1">Submit Feedback</h4>
+              <p className="text-xs text-muted-foreground">Connect later to feedback module</p>
             </button>
           </div>
         </CardContent>

@@ -123,7 +123,9 @@ export function ProjectManagerDashboard() {
         name: p.name,
         progress: Math.max(0, Math.min(100, Number(p.progress ?? 0))),
         status: toHealthStatus(p),
-        dueDate: p.dueDate ? formatDateByPreference(p.dueDate, preferences.dateFormat) : undefined,
+        dueDate: p.dueDate
+          ? formatDateByPreference(p.dueDate, preferences.dateFormat)
+          : undefined,
         tasks: { total, completed },
         teamCount: Array.isArray(p.members) ? p.members.length : 0,
       };
@@ -142,14 +144,19 @@ export function ProjectManagerDashboard() {
         project: projectName,
         priority: t.priority,
         status: mapTaskStatus(t.status),
-        dueDate: t.dueDate ? formatDateByPreference(t.dueDate, preferences.dateFormat) : undefined,
+        dueDate: t.dueDate
+          ? formatDateByPreference(t.dueDate, preferences.dateFormat)
+          : undefined,
         progress,
       };
     });
   }, [tasksRaw, projectsRaw, preferences.dateFormat]);
 
   const myProjectsData = useMemo(() => {
-    return myProjects.slice(0, 5).map((p, idx) => ({ day: `P${idx + 1}`, tasks: p.progress }));
+    return myProjects.slice(0, 5).map((p, idx) => ({
+      day: `P${idx + 1}`,
+      tasks: p.progress,
+    }));
   }, [myProjects]);
 
   const teamPerformanceData = useMemo(() => {
@@ -171,16 +178,20 @@ export function ProjectManagerDashboard() {
   const gridGap = compactMode ? "gap-4" : "gap-6";
   const cardHeaderPadding = compactMode ? "pb-2" : "pb-4";
   const cardTopPadding = compactMode ? "pt-4" : "pt-6";
-  const titleClass = compactMode ? "text-2xl font-semibold text-gray-900" : "text-3xl text-gray-900";
-  const subtitleClass = compactMode ? "text-sm text-gray-600" : "text-gray-600";
+  const titleClass = compactMode
+    ? "text-2xl font-semibold text-foreground"
+    : "text-3xl font-semibold text-foreground";
+  const subtitleClass = compactMode ? "text-sm text-muted-foreground" : "text-muted-foreground";
   const cardTitleClass = compactMode ? "text-base" : "text-lg";
-  const metricValueClass = compactMode ? "text-xl text-gray-900 font-semibold" : "text-2xl text-gray-900";
+  const metricValueClass = compactMode
+    ? "text-xl font-semibold text-foreground"
+    : "text-2xl font-semibold text-foreground";
   const chartHeight = compactMode ? 220 : 256;
   const progressHeight = compactMode ? "h-2" : "h-3";
 
   if (loading || loadingPreferences) {
     return (
-      <div className={`${pagePadding} ${sectionSpacing}`}>
+      <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
         <h1 className={titleClass}>Project Manager Dashboard</h1>
         <p className={subtitleClass}>Loading live project data...</p>
       </div>
@@ -189,50 +200,54 @@ export function ProjectManagerDashboard() {
 
   if (errMsg) {
     return (
-      <div className={`${pagePadding} ${sectionSpacing}`}>
+      <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
         <h1 className={titleClass}>Project Manager Dashboard</h1>
-        <div className="p-4 rounded border border-red-200 bg-red-50 text-red-700">{errMsg}</div>
+        <div className="p-4 rounded border border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          {errMsg}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className={`${pagePadding} ${sectionSpacing}`}>
+    <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
       <div>
         <h1 className={titleClass}>Project Manager Dashboard</h1>
         <p className={subtitleClass}>Manage your projects and team performance</p>
       </div>
 
       <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 ${gridGap}`}>
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">My Projects</CardTitle>
-            <FolderKanban className="w-4 h-4 text-gray-600" />
+            <FolderKanban className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className={cardTopPadding}>
             <div className={metricValueClass}>{myProjects.length}</div>
-            <p className="text-xs text-gray-600 mt-1">Live from database</p>
+            <p className="text-xs text-muted-foreground mt-1">Live from database</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Team Members</CardTitle>
-            <Users className="w-4 h-4 text-gray-600" />
+            <Users className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className={cardTopPadding}>
             <div className={metricValueClass}>—</div>
-            <p className="text-xs text-gray-600 mt-1">Connect later to /team</p>
+            <p className="text-xs text-muted-foreground mt-1">Connect later to /team</p>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Active Tasks</CardTitle>
-            <Target className="w-4 h-4 text-gray-600" />
+            <Target className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className={cardTopPadding}>
-            <div className={metricValueClass}>{pmTasks.filter((t) => t.status !== "completed").length}</div>
+            <div className={metricValueClass}>
+              {pmTasks.filter((t) => t.status !== "completed").length}
+            </div>
             <div className="flex items-center gap-1 mt-1">
               <TrendingUp className="w-3 h-3 text-green-600" />
               <span className="text-xs text-green-600">Live</span>
@@ -240,10 +255,10 @@ export function ProjectManagerDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Completion Rate</CardTitle>
-            <CheckCircle2 className="w-4 h-4 text-gray-600" />
+            <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className={cardTopPadding}>
             <div className={metricValueClass}>
@@ -254,7 +269,7 @@ export function ProjectManagerDashboard() {
                 : 0}
               %
             </div>
-            <p className="text-xs text-gray-600 mt-1">From live task status</p>
+            <p className="text-xs text-muted-foreground mt-1">From live task status</p>
           </CardContent>
         </Card>
       </div>
@@ -269,7 +284,7 @@ export function ProjectManagerDashboard() {
       />
 
       <div className={`grid grid-cols-1 lg:grid-cols-2 ${gridGap}`}>
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={cardHeaderPadding}>
             <CardTitle className={cardTitleClass}>My Projects</CardTitle>
             <CardDescription>Projects in database</CardDescription>
@@ -279,7 +294,7 @@ export function ProjectManagerDashboard() {
               <div key={project.id} className={compactMode ? "space-y-1.5" : "space-y-2"}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className="text-sm text-gray-900">{project.name}</h4>
+                    <h4 className="text-sm text-card-foreground">{project.name}</h4>
                     <Badge variant={project.status === "on-track" ? "default" : "secondary"}>
                       {project.status === "on-track"
                         ? "On Track"
@@ -288,10 +303,12 @@ export function ProjectManagerDashboard() {
                         : "Delayed"}
                     </Badge>
                   </div>
-                  <span className="text-sm text-gray-600">{project.progress}%</span>
+                  <span className="text-sm text-muted-foreground">{project.progress}%</span>
                 </div>
+
                 <Progress value={project.progress} className={progressHeight} />
-                <div className="flex items-center justify-between text-xs text-gray-600 flex-wrap gap-2">
+
+                <div className="flex items-center justify-between text-xs text-muted-foreground flex-wrap gap-2">
                   <div className="flex items-center gap-3 flex-wrap">
                     <div className="flex items-center gap-1">
                       <Users className="w-3 h-3" />
@@ -304,6 +321,7 @@ export function ProjectManagerDashboard() {
                       </span>
                     </div>
                   </div>
+
                   <div className="flex items-center gap-1">
                     <Calendar className="w-3 h-3" />
                     <span>{project.dueDate ?? "—"}</span>
@@ -314,7 +332,7 @@ export function ProjectManagerDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={cardHeaderPadding}>
             <CardTitle className={cardTitleClass}>Task Status</CardTitle>
             <CardDescription>Live distribution</CardDescription>
@@ -345,7 +363,7 @@ export function ProjectManagerDashboard() {
       </div>
 
       <div className={`grid grid-cols-1 lg:grid-cols-2 ${gridGap}`}>
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={cardHeaderPadding}>
             <CardTitle className={cardTitleClass}>Project Progress</CardTitle>
             <CardDescription>Progress per project (top 5)</CardDescription>

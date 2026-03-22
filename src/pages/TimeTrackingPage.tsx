@@ -159,7 +159,11 @@ function getTimesheetId(ts: any): string | null {
   return ts?.id || ts?._id || null;
 }
 
-function exportEntriesAsPDF(entries: TimeEntry[], dateFormat: "mdy" | "dmy" | "ymd") {
+function exportEntriesAsPDF(
+  entries: TimeEntry[],
+  dateFormat: "mdy" | "dmy" | "ymd",
+  timezone?: string
+) {
   const rows = entries
     .map((e) => {
       const taskTitle =
@@ -169,7 +173,7 @@ function exportEntriesAsPDF(entries: TimeEntry[], dateFormat: "mdy" | "dmy" | "y
 
       return `
         <tr>
-          <td>${formatDateByPreference(e.date, dateFormat)}</td>
+          <td>${formatDateByPreference(e.date, dateFormat, timezone)}</td>
           <td>${projectName}</td>
           <td>${taskTitle}</td>
           <td>${formatHMS(e.durationSeconds)}</td>
@@ -178,6 +182,10 @@ function exportEntriesAsPDF(entries: TimeEntry[], dateFormat: "mdy" | "dmy" | "y
       `;
     })
     .join("");
+
+  const generatedOn = new Date().toLocaleString("en-US", {
+    timeZone: timezone,
+  });
 
   const html = `
   <html>
@@ -196,7 +204,7 @@ function exportEntriesAsPDF(entries: TimeEntry[], dateFormat: "mdy" | "dmy" | "y
     <body>
       <h1>Recent Time Entries</h1>
       <p>Exported from TaskFlow</p>
-      <div class="meta">Generated on: ${new Date().toLocaleString()}</div>
+      <div class="meta">Generated on: ${generatedOn}</div>
 
       <table>
         <thead>
@@ -263,10 +271,39 @@ export function TimeTrackingPage() {
   });
 
   const { preferences, loadingPreferences } = useUserPreferences();
+  const compactMode = preferences.compactMode;
   const timezone = useMemo(
     () => mapTimezonePreference(preferences.timezone),
     [preferences.timezone]
   );
+
+  const pagePadding = compactMode ? "p-4" : "p-6";
+  const sectionSpacing = compactMode ? "space-y-4" : "space-y-6";
+  const titleClass = compactMode ? "text-2xl font-semibold mb-1" : "text-3xl font-semibold mb-2";
+  const subtitleClass = compactMode ? "text-sm text-muted-foreground" : "text-muted-foreground";
+  const topGap = compactMode ? "gap-3" : "gap-4";
+  const buttonCompactClass = compactMode ? "h-9 px-3" : "";
+  const iconButtonCompactClass = compactMode ? "h-8 w-8 p-0" : "";
+  const selectTriggerCompactClass = compactMode ? "h-9" : "";
+  const tabsListCompactClass = compactMode ? "h-9" : "";
+  const tabContentSpacing = compactMode ? "space-y-4" : "space-y-6";
+  const gridGap = compactMode ? "gap-4" : "gap-6";
+  const cardHeaderPadding = compactMode ? "pb-2" : "";
+  const timerCardSpacing = compactMode ? "space-y-4" : "space-y-6";
+  const timerDisplayPadding = compactMode ? "py-6" : "py-8";
+  const timerTextClass = compactMode
+    ? `text-5xl font-mono ${isTracking ? "text-primary" : "text-foreground"}`
+    : `text-6xl font-mono ${isTracking ? "text-primary" : "text-foreground"}`;
+  const summarySpacing = compactMode ? "space-y-3" : "space-y-4";
+  const breakdownSpacing = compactMode ? "space-y-2.5" : "space-y-3";
+  const entryListSpacing = compactMode ? "space-y-3" : "space-y-4";
+  const entryRowPadding = compactMode ? "p-3" : "p-4";
+  const metricTextClass = compactMode ? "text-base text-foreground" : "text-lg text-foreground";
+  const helperTextClass = compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground";
+  const timesheetRowPadding = compactMode ? "p-3" : "p-4";
+  const timesheetMetaGap = compactMode ? "gap-3" : "gap-4";
+  const detailsListSpacing = compactMode ? "space-y-2" : "space-y-3";
+  const detailsRowPadding = compactMode ? "p-2.5" : "p-3";
 
   const todayISO = useMemo(() => toISODate(new Date()), []);
 
@@ -552,20 +589,22 @@ export function TimeTrackingPage() {
 
   if (loading.page || loadingPreferences) {
     return (
-      <div className="p-6 space-y-2 bg-background text-foreground">
-        <h1 className="text-3xl font-semibold">Time Tracking</h1>
-        <p className="text-muted-foreground">Loading...</p>
+      <div className={`${pagePadding} space-y-2 bg-background text-foreground`}>
+        <h1 className={compactMode ? "text-2xl font-semibold" : "text-3xl font-semibold"}>
+          Time Tracking
+        </h1>
+        <p className={subtitleClass}>Loading...</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6 bg-background text-foreground">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
+    <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
+      <div className={`flex items-start justify-between ${topGap} flex-wrap`}>
         <div>
-          <h1 className="text-3xl font-semibold mb-2">Time Tracking</h1>
-          <p className="text-muted-foreground">Track time spent on tasks and manage timesheets</p>
-          <div className="mt-2 text-sm text-muted-foreground">
+          <h1 className={titleClass}>Time Tracking</h1>
+          <p className={subtitleClass}>Track time spent on tasks and manage timesheets</p>
+          <div className={`mt-2 ${helperTextClass}`}>
             {me ? (
               <>
                 Logged in as <span className="text-foreground">{me.name}</span> (
@@ -583,37 +622,36 @@ export function TimeTrackingPage() {
             await Promise.all([loadTasks(), loadEntries(), loadTodaySummary(), loadTimesheets()]);
             toast.success("Refreshed");
           }}
+          className={buttonCompactClass}
         >
           <RefreshCw className="w-4 h-4 mr-2" />
           Refresh
         </Button>
       </div>
 
-      <Tabs defaultValue="timer" className="space-y-6">
-        <TabsList>
+      <Tabs defaultValue="timer" className={tabContentSpacing}>
+        <TabsList className={tabsListCompactClass}>
           <TabsTrigger value="timer">Timer</TabsTrigger>
           <TabsTrigger value="recent">Recent Entries</TabsTrigger>
           <TabsTrigger value="timesheets">Timesheets</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="timer" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <TabsContent value="timer" className={tabContentSpacing}>
+          <div className={`grid grid-cols-1 lg:grid-cols-3 ${gridGap}`}>
             <Card className="lg:col-span-2 border-border bg-card text-card-foreground">
-              <CardHeader>
-                <CardTitle>Time Tracker</CardTitle>
+              <CardHeader className={cardHeaderPadding}>
+                <CardTitle className={compactMode ? "text-base" : ""}>Time Tracker</CardTitle>
                 <CardDescription>Start tracking time for your current task</CardDescription>
               </CardHeader>
 
-              <CardContent className="space-y-6">
-                <div className="flex items-center justify-center py-8">
-                  <div className={`text-6xl font-mono ${isTracking ? "text-primary" : "text-foreground"}`}>
-                    {formatHMS(elapsedSeconds)}
-                  </div>
+              <CardContent className={timerCardSpacing}>
+                <div className={`flex items-center justify-center ${timerDisplayPadding}`}>
+                  <div className={timerTextClass}>{formatHMS(elapsedSeconds)}</div>
                 </div>
 
-                <div className="space-y-4">
+                <div className={compactMode ? "space-y-3" : "space-y-4"}>
                   <div className="space-y-2">
-                    <label className="text-sm text-muted-foreground">Select Task</label>
+                    <label className={helperTextClass}>Select Task</label>
                     <Select
                       value={selectedTaskId}
                       onValueChange={(val) => {
@@ -624,8 +662,10 @@ export function TimeTrackingPage() {
                         setSelectedTaskId(val);
                       }}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder={loading.tasks ? "Loading tasks..." : "Choose a task to track..."} />
+                      <SelectTrigger className={selectTriggerCompactClass}>
+                        <SelectValue
+                          placeholder={loading.tasks ? "Loading tasks..." : "Choose a task to track..."}
+                        />
                       </SelectTrigger>
                       <SelectContent>
                         {tasks.length === 0 && (
@@ -644,7 +684,7 @@ export function TimeTrackingPage() {
 
                   <Button
                     onClick={handleStartStop}
-                    className="w-full"
+                    className={`w-full ${buttonCompactClass}`}
                     size="lg"
                     disabled={saving}
                     variant={isTracking ? "destructive" : "default"}
@@ -666,39 +706,48 @@ export function TimeTrackingPage() {
             </Card>
 
             <Card className="border-border bg-card text-card-foreground">
-              <CardHeader>
-                <CardTitle>Today's Summary</CardTitle>
+              <CardHeader className={cardHeaderPadding}>
+                <CardTitle className={compactMode ? "text-base" : ""}>Today's Summary</CardTitle>
                 <CardDescription>
                   {formatDateByPreference(todayISO, preferences.dateFormat, timezone)}
                 </CardDescription>
               </CardHeader>
 
-              <CardContent className="space-y-4">
+              <CardContent className={summarySpacing}>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Total Time</span>
-                    <span className="text-lg text-foreground">{formatHMS(summaryDisplay?.totalSeconds || 0)}</span>
+                    <span className={helperTextClass}>Total Time</span>
+                    <span className={metricTextClass}>
+                      {formatHMS(summaryDisplay?.totalSeconds || 0)}
+                    </span>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Tasks Tracked</span>
-                    <span className="text-lg text-foreground">{summaryDisplay?.tasksTracked || 0}</span>
+                    <span className={helperTextClass}>Tasks Tracked</span>
+                    <span className={metricTextClass}>{summaryDisplay?.tasksTracked || 0}</span>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Projects</span>
-                    <span className="text-lg text-foreground">{summaryDisplay?.projectsTracked || 0}</span>
+                    <span className={helperTextClass}>Projects</span>
+                    <span className={metricTextClass}>{summaryDisplay?.projectsTracked || 0}</span>
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-border space-y-3">
-                  <h4 className="text-sm text-foreground">Breakdown</h4>
+                <div className={`pt-4 border-t border-border ${breakdownSpacing}`}>
+                  <h4 className={compactMode ? "text-xs text-foreground" : "text-sm text-foreground"}>
+                    Breakdown
+                  </h4>
                   <div className="space-y-2">
                     {breakdownRows.length === 0 ? (
-                      <div className="text-sm text-muted-foreground">No entries logged today.</div>
+                      <div className={helperTextClass}>No entries logged today.</div>
                     ) : (
                       breakdownRows.map((b) => (
-                        <div key={b.projectId} className="flex items-center justify-between text-sm">
+                        <div
+                          key={b.projectId}
+                          className={`flex items-center justify-between ${
+                            compactMode ? "text-xs" : "text-sm"
+                          }`}
+                        >
                           <span className="text-muted-foreground">{b.projectName}</span>
                           <span className="text-foreground">{formatHMS(b.sec)}</span>
                         </div>
@@ -713,16 +762,23 @@ export function TimeTrackingPage() {
 
         <TabsContent value="recent">
           <Card className="border-border bg-card text-card-foreground">
-            <CardHeader>
-              <div className="flex items-center justify-between gap-3 flex-wrap">
+            <CardHeader className={cardHeaderPadding}>
+              <div className={`flex items-center justify-between ${topGap} flex-wrap`}>
                 <div>
-                  <CardTitle>Recent Time Entries</CardTitle>
+                  <CardTitle className={compactMode ? "text-base" : ""}>Recent Time Entries</CardTitle>
                   <CardDescription>Your latest tracked activities</CardDescription>
                 </div>
 
                 <Button
                   variant="outline"
-                  onClick={() => exportEntriesAsPDF(recentEntries, preferences.dateFormat)}
+                  onClick={() =>
+                    exportEntriesAsPDF(
+                      recentEntries,
+                      preferences.dateFormat,
+                      timezone
+                    )
+                  }
+                  className={buttonCompactClass}
                 >
                   <Download className="w-4 h-4 mr-2" />
                   Export PDF
@@ -731,9 +787,9 @@ export function TimeTrackingPage() {
             </CardHeader>
 
             <CardContent>
-              <div className="space-y-4">
+              <div className={entryListSpacing}>
                 {recentEntries.length === 0 ? (
-                  <div className="text-sm text-muted-foreground">No time entries yet.</div>
+                  <div className={helperTextClass}>No time entries yet.</div>
                 ) : (
                   recentEntries.map((entry) => {
                     const taskTitle =
@@ -745,11 +801,17 @@ export function TimeTrackingPage() {
                     return (
                       <div
                         key={entry._id}
-                        className="flex items-center justify-between p-4 border border-border rounded-lg hover:border-primary/50 transition-colors bg-card"
+                        className={`flex items-center justify-between ${entryRowPadding} border border-border rounded-lg hover:border-primary/50 transition-colors bg-card`}
                       >
                         <div className="flex-1">
-                          <h4 className="text-foreground">{taskTitle}</h4>
-                          <div className="flex flex-wrap items-center gap-4 mt-1 text-sm text-muted-foreground">
+                          <h4 className={compactMode ? "text-sm text-foreground" : "text-foreground"}>
+                            {taskTitle}
+                          </h4>
+                          <div
+                            className={`flex flex-wrap items-center ${
+                              compactMode ? "gap-3" : "gap-4"
+                            } mt-1 ${helperTextClass}`}
+                          >
                             <span className="flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
                               {formatDateByPreference(entry.date, preferences.dateFormat, timezone)}
@@ -767,7 +829,7 @@ export function TimeTrackingPage() {
 
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
+                              <Button variant="ghost" size="icon" className={iconButtonCompactClass}>
                                 <MoreVertical className="w-4 h-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -796,14 +858,14 @@ export function TimeTrackingPage() {
 
         <TabsContent value="timesheets">
           <Card className="border-border bg-card text-card-foreground">
-            <CardHeader>
-              <div className="flex items-center justify-between gap-3 flex-wrap">
+            <CardHeader className={cardHeaderPadding}>
+              <div className={`flex items-center justify-between ${topGap} flex-wrap`}>
                 <div>
-                  <CardTitle>Timesheets</CardTitle>
+                  <CardTitle className={compactMode ? "text-base" : ""}>Timesheets</CardTitle>
                   <CardDescription>Submit and manage your weekly timesheets</CardDescription>
                 </div>
 
-                <Button onClick={submitCurrentWeek}>
+                <Button onClick={submitCurrentWeek} className={buttonCompactClass}>
                   <FileCheck2 className="w-4 h-4 mr-2" />
                   Submit Current Week
                 </Button>
@@ -811,9 +873,9 @@ export function TimeTrackingPage() {
             </CardHeader>
 
             <CardContent>
-              <div className="space-y-4">
+              <div className={entryListSpacing}>
                 {timesheets.length === 0 ? (
-                  <div className="text-sm text-muted-foreground">
+                  <div className={helperTextClass}>
                     No timesheets found yet. Submit the current week to create one.
                   </div>
                 ) : (
@@ -830,11 +892,16 @@ export function TimeTrackingPage() {
                         : "outline";
 
                     return (
-                      <div key={tsId || ts.weekStart} className="p-4 border border-border rounded-lg bg-card">
+                      <div
+                        key={tsId || ts.weekStart}
+                        className={`${timesheetRowPadding} border border-border rounded-lg bg-card`}
+                      >
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2 flex-wrap">
-                              <h4 className="text-foreground">{weekLabelFromISO(ts.weekStart)}</h4>
+                            <div className={`flex items-center ${compactMode ? "gap-2" : "gap-3"} mb-2 flex-wrap`}>
+                              <h4 className={compactMode ? "text-sm text-foreground" : "text-foreground"}>
+                                {weekLabelFromISO(ts.weekStart)}
+                              </h4>
 
                               <Badge variant={badgeVariant}>
                                 {ts.status === "approved" && <CheckCircle2 className="w-3 h-3 mr-1" />}
@@ -843,7 +910,7 @@ export function TimeTrackingPage() {
                               </Badge>
                             </div>
 
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div className={`grid grid-cols-2 md:grid-cols-4 ${timesheetMetaGap} ${helperTextClass}`}>
                               <div>
                                 <span className="text-muted-foreground">Total Hours:</span>
                                 <span className="text-foreground ml-1">{ts.totalHours}</span>
@@ -868,13 +935,18 @@ export function TimeTrackingPage() {
 
                             {canReview && ts.status === "pending" && (
                               <div className="mt-4 flex gap-2 flex-wrap">
-                                <Button disabled={!tsId} onClick={() => tsId && reviewTimesheet(tsId, "approved")}>
+                                <Button
+                                  disabled={!tsId}
+                                  onClick={() => tsId && reviewTimesheet(tsId, "approved")}
+                                  className={buttonCompactClass}
+                                >
                                   Approve
                                 </Button>
                                 <Button
                                   disabled={!tsId}
                                   variant="destructive"
                                   onClick={() => tsId && reviewTimesheet(tsId, "rejected")}
+                                  className={buttonCompactClass}
                                 >
                                   Reject
                                 </Button>
@@ -888,7 +960,12 @@ export function TimeTrackingPage() {
                             )}
                           </div>
 
-                          <Button variant="ghost" size="sm" onClick={() => openTimesheetDetails(ts.weekStart, ts.weekEnd)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openTimesheetDetails(ts.weekStart, ts.weekEnd)}
+                            className={buttonCompactClass}
+                          >
                             View Details
                           </Button>
                         </div>
@@ -908,11 +985,11 @@ export function TimeTrackingPage() {
               </DialogHeader>
 
               {detailsLoading ? (
-                <div className="text-sm text-muted-foreground">Loading...</div>
+                <div className={helperTextClass}>Loading...</div>
               ) : (
-                <div className="space-y-3">
+                <div className={detailsListSpacing}>
                   {detailsEntries.length === 0 ? (
-                    <div className="text-sm text-muted-foreground">No entries in this week.</div>
+                    <div className={helperTextClass}>No entries in this week.</div>
                   ) : (
                     detailsEntries.map((e) => {
                       const taskTitle =
@@ -921,9 +998,14 @@ export function TimeTrackingPage() {
                         typeof e.projectId === "string" ? "Project" : (e.projectId as any)?.name;
 
                       return (
-                        <div key={e._id} className="p-3 border border-border rounded-lg bg-card">
-                          <div className="text-foreground">{taskTitle}</div>
-                          <div className="text-sm text-muted-foreground mt-1 flex flex-wrap gap-3">
+                        <div
+                          key={e._id}
+                          className={`${detailsRowPadding} border border-border rounded-lg bg-card`}
+                        >
+                          <div className={compactMode ? "text-sm text-foreground" : "text-foreground"}>
+                            {taskTitle}
+                          </div>
+                          <div className={`${helperTextClass} mt-1 flex flex-wrap gap-3`}>
                             <span>{formatDateByPreference(e.date, preferences.dateFormat, timezone)}</span>
                             <span>{formatHMS(e.durationSeconds)}</span>
                             <Badge variant="outline">{projectName}</Badge>
