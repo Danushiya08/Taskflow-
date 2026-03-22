@@ -15,6 +15,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 
 import api from "@/lib/api";
 import { ProjectAssistant } from "@/components/ProjectAssistant";
+import { useUserPreferences } from "@/hooks/useUserPreferences";
+import { formatDateByPreference } from "@/lib/dateFormat";
 
 type BackendUser = {
   _id: string;
@@ -63,13 +65,6 @@ type AssistantProject = {
   progress: number;
   tasks: { total: number; completed: number };
   teamCount: number;
-};
-
-const formatDate = (iso?: string | null) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-  return d.toISOString().slice(0, 10);
 };
 
 const clamp = (n: number) => Math.max(0, Math.min(100, n));
@@ -124,6 +119,13 @@ const getStatusColor = (status: string) => {
   }
 };
 
+const chartTooltipStyle = {
+  backgroundColor: "hsl(var(--card))",
+  border: "1px solid hsl(var(--border))",
+  color: "hsl(var(--card-foreground))",
+  borderRadius: "8px",
+};
+
 export function TeamMemberDashboard() {
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState<string | null>(null);
@@ -131,7 +133,9 @@ export function TeamMemberDashboard() {
   const [projectsRaw, setProjectsRaw] = useState<BackendProject[]>([]);
   const [tasksRaw, setTasksRaw] = useState<BackendTask[]>([]);
 
-  // (still mock because you don’t track hours in DB yet)
+  const { preferences, loadingPreferences } = useUserPreferences();
+  const compactMode = preferences.compactMode;
+
   const myTasksData = [
     { day: "Mon", hours: 6 },
     { day: "Tue", hours: 7 },
@@ -146,14 +150,12 @@ export function TeamMemberDashboard() {
       setErrMsg(null);
 
       try {
-        // ✅ Projects route: /projects
         const pRes = await api.get<{ projects: BackendProject[] }>("/projects");
         const projects = pRes.data?.projects ?? [];
         setProjectsRaw(projects);
 
-        // ✅ Tasks routes mounted on /api and supports "/:projectId/tasks"
         const taskCalls = projects.map(async (p) => {
-          const tRes = await api.get<{ tasks: BackendTask[] }>(`/${p._id}/tasks`);
+          const tRes = await api.get<{ tasks: BackendTask[] }>(`/projects/${p._id}/tasks`);
           return tRes.data?.tasks ?? [];
         });
 
@@ -181,17 +183,18 @@ export function TeamMemberDashboard() {
           id: p._id,
           name: p.name,
           status: computeProjectHealth(p),
-          dueDate: p.dueDate ? formatDate(p.dueDate) : undefined,
+          dueDate: p.dueDate ? formatDateByPreference(p.dueDate, preferences.dateFormat) : undefined,
           progress: clamp(Number(p.progress ?? 0)),
           tasks: { total, completed },
           teamCount: Array.isArray(p.members) ? p.members.length : 0,
         };
       });
-  }, [projectsRaw, tasksRaw]);
+  }, [projectsRaw, tasksRaw, preferences.dateFormat]);
 
   const assistantTasks: AssistantTask[] = useMemo(() => {
     return tasksRaw.map((t) => {
-      const projectName = projectsRaw.find((p) => String(p._id) === String(t.projectId))?.name || "Project";
+      const projectName =
+        projectsRaw.find((p) => String(p._id) === String(t.projectId))?.name || "Project";
 
       const progress = t.status === "done" ? 100 : t.status === "in-progress" ? 50 : 0;
 
@@ -201,11 +204,11 @@ export function TeamMemberDashboard() {
         project: projectName,
         priority: t.priority,
         status: mapTaskStatus(t.status),
-        dueDate: t.dueDate ? formatDate(t.dueDate) : undefined,
+        dueDate: t.dueDate ? formatDateByPreference(t.dueDate, preferences.dateFormat) : undefined,
         progress,
       };
     });
-  }, [tasksRaw, projectsRaw]);
+  }, [tasksRaw, projectsRaw, preferences.dateFormat]);
 
   const stats = useMemo(() => {
     const totalTasks = assistantTasks.length;
@@ -233,56 +236,69 @@ export function TeamMemberDashboard() {
     { action: "Synced data", description: "Projects + assigned tasks loaded from server", time: "Just now" },
   ];
 
-  if (loading) {
+  const pagePadding = compactMode ? "p-4" : "p-6";
+  const sectionSpacing = compactMode ? "space-y-4" : "space-y-6";
+  const gridGap = compactMode ? "gap-4" : "gap-6";
+  const cardHeaderPadding = compactMode ? "pb-2" : "pb-4";
+  const cardTopPadding = compactMode ? "pt-4" : "pt-6";
+  const titleClass = compactMode ? "text-2xl font-semibold text-gray-900" : "text-3xl text-gray-900";
+  const subtitleClass = compactMode ? "text-sm text-gray-600" : "text-gray-600";
+  const cardTitleClass = compactMode ? "text-base" : "text-lg";
+  const metricValueClass = compactMode ? "text-xl text-gray-900 font-semibold" : "text-2xl text-gray-900";
+  const chartHeight = compactMode ? 220 : 256;
+  const progressHeight = compactMode ? "h-2" : "h-3";
+  const listSpacing = compactMode ? "space-y-3" : "space-y-4";
+  const taskBoxPadding = compactMode ? "p-3" : "p-4";
+  const taskBoxSpacing = compactMode ? "space-y-2" : "space-y-3";
+
+  if (loading || loadingPreferences) {
     return (
-      <div className="p-6 space-y-6">
-        <h1 className="text-3xl text-gray-900">My Dashboard</h1>
-        <p className="text-gray-600">Loading your projects and tasks...</p>
+      <div className={`${pagePadding} ${sectionSpacing}`}>
+        <h1 className={titleClass}>My Dashboard</h1>
+        <p className={subtitleClass}>Loading your projects and tasks...</p>
       </div>
     );
   }
 
   if (errMsg) {
     return (
-      <div className="p-6 space-y-6">
-        <h1 className="text-3xl text-gray-900">My Dashboard</h1>
+      <div className={`${pagePadding} ${sectionSpacing}`}>
+        <h1 className={titleClass}>My Dashboard</h1>
         <div className="p-4 rounded border border-red-200 bg-red-50 text-red-700">{errMsg}</div>
         <p className="text-sm text-gray-600">
           Confirm backend logs show routes like: <span className="font-mono">GET /projects</span> and{" "}
-          <span className="font-mono">GET /api/&lt;projectId&gt;/tasks</span>
+          <span className="font-mono">GET /api/projects/&lt;projectId&gt;/tasks</span>
         </p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
+    <div className={`${pagePadding} ${sectionSpacing}`}>
       <div>
-        <h1 className="text-3xl text-gray-900">My Dashboard</h1>
-        <p className="text-gray-600">Track your tasks and productivity</p>
+        <h1 className={titleClass}>My Dashboard</h1>
+        <p className={subtitleClass}>Track your tasks and productivity</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 ${gridGap}`}>
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">My Tasks</CardTitle>
             <Target className="w-4 h-4 text-gray-600" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl text-gray-900">{stats.totalTasks}</div>
+          <CardContent className={cardTopPadding}>
+            <div className={metricValueClass}>{stats.totalTasks}</div>
             <p className="text-xs text-gray-600 mt-1">{stats.dueSoon} due this week</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Completed</CardTitle>
             <CheckCircle2 className="w-4 h-4 text-gray-600" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl text-gray-900">{stats.completed}</div>
+          <CardContent className={cardTopPadding}>
+            <div className={metricValueClass}>{stats.completed}</div>
             <div className="flex items-center gap-1 mt-1">
               <TrendingUp className="w-3 h-3 text-green-600" />
               <span className="text-xs text-green-600">Live from server</span>
@@ -291,29 +307,28 @@ export function TeamMemberDashboard() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Hours This Week</CardTitle>
             <Clock className="w-4 h-4 text-gray-600" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl text-gray-900">35h</div>
+          <CardContent className={cardTopPadding}>
+            <div className={metricValueClass}>35h</div>
             <p className="text-xs text-gray-600 mt-1">Out of 40h target</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Projects</CardTitle>
             <Users className="w-4 h-4 text-gray-600" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl text-gray-900">{assistantProjects.length}</div>
+          <CardContent className={cardTopPadding}>
+            <div className={metricValueClass}>{assistantProjects.length}</div>
             <p className="text-xs text-gray-600 mt-1">Active projects</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* ✅ AI Project Assistant */}
       <ProjectAssistant
         role="team-member"
         projects={assistantProjects as any}
@@ -322,19 +337,18 @@ export function TeamMemberDashboard() {
         subtitle="Your daily priorities, risks, reminders, and what to do next"
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Tasks */}
+      <div className={`grid grid-cols-1 lg:grid-cols-3 ${gridGap}`}>
         <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>My Tasks</CardTitle>
+          <CardHeader className={cardHeaderPadding}>
+            <CardTitle className={cardTitleClass}>My Tasks</CardTitle>
             <CardDescription>Tasks assigned to you</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className={listSpacing}>
             {assistantTasks.length === 0 ? (
               <div className="text-sm text-gray-600">No tasks assigned to you yet.</div>
             ) : (
               assistantTasks.map((task) => (
-                <div key={task.id} className="p-4 bg-gray-50 rounded-lg space-y-3">
+                <div key={task.id} className={`${taskBoxPadding} bg-gray-50 rounded-lg ${taskBoxSpacing}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
                       <h4 className="text-sm text-gray-900 mb-1">{task.title}</h4>
@@ -343,8 +357,8 @@ export function TeamMemberDashboard() {
                     <Badge className={getPriorityColor(task.priority)}>{task.priority}</Badge>
                   </div>
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-xs">
+                  <div className={compactMode ? "space-y-1.5" : "space-y-2"}>
+                    <div className="flex items-center justify-between text-xs flex-wrap gap-2">
                       <span className={`px-2 py-1 rounded ${getStatusColor(task.status)}`}>
                         {task.status.replace("-", " ")}
                       </span>
@@ -359,8 +373,8 @@ export function TeamMemberDashboard() {
                     </div>
 
                     {(task.progress ?? 0) > 0 && (
-                      <div className="space-y-1">
-                        <Progress value={task.progress ?? 0} />
+                      <div className={compactMode ? "space-y-1" : "space-y-1"}>
+                        <Progress value={task.progress ?? 0} className={progressHeight} />
                         <p className="text-xs text-gray-600 text-right">{task.progress ?? 0}% complete</p>
                       </div>
                     )}
@@ -371,14 +385,13 @@ export function TeamMemberDashboard() {
           </CardContent>
         </Card>
 
-        {/* Activity */}
         <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
+          <CardHeader className={cardHeaderPadding}>
+            <CardTitle className={cardTitleClass}>Recent Activity</CardTitle>
             <CardDescription>Your recent updates</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className={listSpacing}>
               {recentActivity.map((activity, index) => (
                 <div key={index} className="flex gap-3">
                   <div className="w-2 h-2 rounded-full bg-blue-600 mt-2 flex-shrink-0" />
@@ -394,21 +407,20 @@ export function TeamMemberDashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Time Tracking */}
+      <div className={`grid grid-cols-1 lg:grid-cols-2 ${gridGap}`}>
         <Card>
-          <CardHeader>
-            <CardTitle>Time Tracking</CardTitle>
+          <CardHeader className={cardHeaderPadding}>
+            <CardTitle className={cardTitleClass}>Time Tracking</CardTitle>
             <CardDescription>Hours logged this week</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height={chartHeight}>
                 <BarChart data={myTasksData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                   <XAxis dataKey="day" />
                   <YAxis />
-                  <Tooltip />
+                  <Tooltip contentStyle={chartTooltipStyle} />
                   <Bar dataKey="hours" fill="#3b82f6" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -416,21 +428,20 @@ export function TeamMemberDashboard() {
           </CardContent>
         </Card>
 
-        {/* Deadlines */}
         <Card>
-          <CardHeader>
-            <CardTitle>Upcoming Deadlines</CardTitle>
+          <CardHeader className={cardHeaderPadding}>
+            <CardTitle className={cardTitleClass}>Upcoming Deadlines</CardTitle>
             <CardDescription>Tasks due soon</CardDescription>
           </CardHeader>
           <CardContent>
             {upcomingDeadlines.length === 0 ? (
               <div className="text-sm text-gray-600">No upcoming deadlines.</div>
             ) : (
-              <div className="space-y-3">
+              <div className={compactMode ? "space-y-2" : "space-y-3"}>
                 {upcomingDeadlines.map((t) => (
                   <div
                     key={t.id}
-                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+                    className={`flex items-center justify-between ${compactMode ? "p-2.5" : "p-3"} bg-gray-50 rounded-lg border border-gray-200 gap-3`}
                   >
                     <div className="flex items-center gap-3">
                       <AlertCircle className="w-5 h-5 text-gray-700" />

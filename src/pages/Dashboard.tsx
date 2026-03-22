@@ -72,6 +72,13 @@ const mapTaskStatus = (s: BackendTask["status"]): Task["status"] => {
   return "pending";
 };
 
+const chartTooltipStyle = {
+  backgroundColor: "hsl(var(--card))",
+  border: "1px solid hsl(var(--border))",
+  color: "hsl(var(--card-foreground))",
+  borderRadius: "8px",
+};
+
 export function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState<string | null>(null);
@@ -80,6 +87,7 @@ export function Dashboard() {
   const [tasksRaw, setTasksRaw] = useState<BackendTask[]>([]);
 
   const { preferences, loadingPreferences } = useUserPreferences();
+  const compactMode = preferences.compactMode;
 
   useEffect(() => {
     const load = async () => {
@@ -119,9 +127,7 @@ export function Dashboard() {
         name: p.name,
         progress: Math.max(0, Math.min(100, Number(p.progress ?? 0))),
         status: toHealthStatus(p),
-        dueDate: p.dueDate
-          ? formatDateByPreference(p.dueDate, preferences.dateFormat)
-          : undefined,
+        dueDate: p.dueDate ? formatDateByPreference(p.dueDate, preferences.dateFormat) : undefined,
         tasks: { total, completed },
         teamCount: Array.isArray(p.members) ? p.members.length : 0,
       };
@@ -141,9 +147,7 @@ export function Dashboard() {
         project: projectName,
         priority: t.priority,
         status: mapTaskStatus(t.status),
-        dueDate: t.dueDate
-          ? formatDateByPreference(t.dueDate, preferences.dateFormat)
-          : undefined,
+        dueDate: t.dueDate ? formatDateByPreference(t.dueDate, preferences.dateFormat) : undefined,
         progress,
       };
     });
@@ -175,19 +179,36 @@ export function Dashboard() {
 
   const teamMembers: any[] = [];
 
+  const pagePadding = compactMode ? "p-4" : "p-6";
+  const sectionSpacing = compactMode ? "space-y-4" : "space-y-6";
+  const gridGap = compactMode ? "gap-4" : "gap-6";
+  const cardHeaderPadding = compactMode ? "pb-2" : "pb-4";
+  const cardTopPadding = compactMode ? "pt-4" : "pt-6";
+  const titleClass = compactMode ? "text-2xl font-semibold mb-1" : "text-3xl font-semibold mb-2";
+  const subtitleClass = compactMode ? "text-sm text-muted-foreground" : "text-muted-foreground";
+  const cardTitleClass = compactMode ? "text-base" : "text-lg";
+  const metricValueClass = compactMode ? "text-xl font-semibold" : "text-2xl font-semibold";
+  const chartHeight = compactMode ? 220 : 250;
+  const pieOuterRadius = compactMode ? 68 : 80;
+  const listSpacing = compactMode ? "space-y-3" : "space-y-4";
+  const itemPadding = compactMode ? "p-3" : "p-4";
+  const itemGap = compactMode ? "mb-2" : "mb-3";
+  const progressSizeClass = compactMode ? "h-2" : "h-3";
+  const metaIconClass = compactMode ? "w-3.5 h-3.5" : "w-4 h-4";
+
   if (loading || loadingPreferences) {
     return (
-      <div className="p-6 space-y-6 bg-background text-foreground">
-        <h1 className="text-3xl font-semibold">Dashboard</h1>
-        <p className="text-muted-foreground">Loading live project data...</p>
+      <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
+        <h1 className={compactMode ? "text-2xl font-semibold" : "text-3xl font-semibold"}>Dashboard</h1>
+        <p className={subtitleClass}>Loading live project data...</p>
       </div>
     );
   }
 
   if (errMsg) {
     return (
-      <div className="p-6 space-y-6 bg-background text-foreground">
-        <h1 className="text-3xl font-semibold">Dashboard</h1>
+      <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
+        <h1 className={compactMode ? "text-2xl font-semibold" : "text-3xl font-semibold"}>Dashboard</h1>
         <div className="p-4 rounded border border-destructive/30 bg-destructive/10 text-destructive">
           {errMsg}
         </div>
@@ -200,20 +221,20 @@ export function Dashboard() {
   const doneTasks = allTasks.filter((t) => t.status === "completed").length;
 
   return (
-    <div className="p-6 space-y-6 bg-background text-foreground">
+    <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
       <div>
-        <h1 className="text-3xl font-semibold mb-2">Dashboard</h1>
-        <p className="text-muted-foreground">Live system overview (projects + tasks)</p>
+        <h1 className={titleClass}>Dashboard</h1>
+        <p className={subtitleClass}>Live system overview (projects + tasks)</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 ${gridGap}`}>
         <Card className="border-border bg-card text-card-foreground">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Active Projects</CardTitle>
             <FolderKanban className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{totalProjects}</div>
+          <CardContent className={cardTopPadding}>
+            <div className={metricValueClass}>{totalProjects}</div>
             <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
               <TrendingUp className="w-3 h-3 text-green-600" />
               Live count
@@ -222,12 +243,12 @@ export function Dashboard() {
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Tasks Completed</CardTitle>
             <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">{doneTasks}</div>
+          <CardContent className={cardTopPadding}>
+            <div className={metricValueClass}>{doneTasks}</div>
             <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
               <TrendingUp className="w-3 h-3 text-green-600" />
               Out of {totalTasks}
@@ -236,23 +257,23 @@ export function Dashboard() {
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Team Members</CardTitle>
             <Users className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">—</div>
+          <CardContent className={cardTopPadding}>
+            <div className={metricValueClass}>—</div>
             <p className="text-xs text-muted-foreground mt-1">Connect later to /team</p>
           </CardContent>
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
             <CardTitle className="text-sm">Avg. Completion Time</CardTitle>
             <Clock className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-semibold">—</div>
+          <CardContent className={cardTopPadding}>
+            <div className={metricValueClass}>—</div>
             <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
               <TrendingDown className="w-3 h-3 text-green-600" />
               Add later from analytics
@@ -270,26 +291,19 @@ export function Dashboard() {
         subtitle="Prioritization, risks, and schedule signals (Admin view)"
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className={`grid grid-cols-1 lg:grid-cols-2 ${gridGap}`}>
         <Card className="border-border bg-card text-card-foreground">
-          <CardHeader>
-            <CardTitle>Tasks Overview</CardTitle>
+          <CardHeader className={cardHeaderPadding}>
+            <CardTitle className={cardTitleClass}>Tasks Overview</CardTitle>
             <CardDescription>Counts by status (live)</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={chartHeight}>
               <BarChart data={productivityData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" />
                 <YAxis stroke="hsl(var(--muted-foreground))" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    color: "hsl(var(--card-foreground))",
-                    borderRadius: "8px",
-                  }}
-                />
+                <Tooltip contentStyle={chartTooltipStyle} />
                 <Bar dataKey="tasks" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -297,12 +311,12 @@ export function Dashboard() {
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardHeader>
-            <CardTitle>Project Status Distribution</CardTitle>
+          <CardHeader className={cardHeaderPadding}>
+            <CardTitle className={cardTitleClass}>Project Status Distribution</CardTitle>
             <CardDescription>Live health status</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={chartHeight}>
               <PieChart>
                 <Pie
                   data={projectStatusData}
@@ -310,21 +324,14 @@ export function Dashboard() {
                   cy="50%"
                   labelLine={false}
                   label={({ name, value }) => `${name}: ${value}`}
-                  outerRadius={80}
+                  outerRadius={pieOuterRadius}
                   dataKey="value"
                 >
                   {projectStatusData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    color: "hsl(var(--card-foreground))",
-                    borderRadius: "8px",
-                  }}
-                />
+                <Tooltip contentStyle={chartTooltipStyle} />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
@@ -332,27 +339,27 @@ export function Dashboard() {
       </div>
 
       <Card className="border-border bg-card text-card-foreground">
-        <CardHeader>
-          <CardTitle>Recent Projects</CardTitle>
+        <CardHeader className={cardHeaderPadding}>
+          <CardTitle className={cardTitleClass}>Recent Projects</CardTitle>
           <CardDescription>Live projects from database</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className={listSpacing}>
             {recentProjects.map((project) => (
               <div
                 key={project.id}
-                className="p-4 border border-border rounded-lg hover:border-primary/50 transition-colors cursor-pointer bg-card"
+                className={`${itemPadding} border border-border rounded-lg hover:border-primary/50 transition-colors cursor-pointer bg-card`}
               >
-                <div className="flex items-start justify-between mb-3">
+                <div className={`flex items-start justify-between ${itemGap}`}>
                   <div>
                     <h4 className="font-medium text-card-foreground mb-1">{project.name}</h4>
                     <div className="flex items-center gap-3 text-sm text-muted-foreground flex-wrap">
                       <span className="flex items-center gap-1">
-                        <Target className="w-4 h-4" />
+                        <Target className={metaIconClass} />
                         {project.tasks?.completed ?? 0}/{project.tasks?.total ?? 0} tasks
                       </span>
                       <span className="flex items-center gap-1">
-                        <Clock className="w-4 h-4" />
+                        <Clock className={metaIconClass} />
                         Due {project.dueDate ?? "—"}
                       </span>
                     </div>
@@ -371,12 +378,12 @@ export function Dashboard() {
                   </Badge>
                 </div>
 
-                <div className="space-y-2">
+                <div className={compactMode ? "space-y-1.5" : "space-y-2"}>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Progress</span>
                     <span className="text-card-foreground">{project.progress}%</span>
                   </div>
-                  <Progress value={project.progress} />
+                  <Progress value={project.progress} className={progressSizeClass} />
                 </div>
               </div>
             ))}
