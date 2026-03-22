@@ -3,24 +3,48 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Plus, Calendar, Paperclip, MessageSquare, MoreVertical, Filter } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Plus,
+  Calendar,
+  Paperclip,
+  MessageSquare,
+  MoreVertical,
+  Filter,
+} from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import { useUserPreferences } from "@/hooks/useUserPreferences";
+import { formatDateByPreference } from "@/lib/dateFormat";
 
 type Project = { _id: string; name: string };
 
 type Task = {
   _id: string;
   title: string;
-  status?: string; // backlog/todo/in-progress/review/done (or other values)
+  status?: string;
   priority?: string;
   dueDate?: string;
   tags?: string[];
   assignee?: { name?: string; avatar?: string };
+  assignedTo?: { name?: string; avatar?: string };
   commentsCount?: number;
   attachmentsCount?: number;
   projectId?: string;
+};
+
+const COLUMN_STYLES: Record<string, string> = {
+  backlog: "bg-muted",
+  todo: "bg-blue-500/10",
+  "in-progress": "bg-yellow-500/10",
+  review: "bg-purple-500/10",
+  done: "bg-green-500/10",
 };
 
 export function KanbanPage() {
@@ -29,12 +53,14 @@ export function KanbanPage() {
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const { preferences, loadingPreferences } = useUserPreferences();
+
   const columns = [
-    { id: "backlog", title: "Backlog", color: "bg-gray-100" },
-    { id: "todo", title: "To Do", color: "bg-blue-100" },
-    { id: "in-progress", title: "In Progress", color: "bg-yellow-100" },
-    { id: "review", title: "Review", color: "bg-purple-100" },
-    { id: "done", title: "Done", color: "bg-green-100" },
+    { id: "backlog", title: "Backlog" },
+    { id: "todo", title: "To Do" },
+    { id: "in-progress", title: "In Progress" },
+    { id: "review", title: "Review" },
+    { id: "done", title: "Done" },
   ];
 
   const normalizeStatus = (s?: string) => {
@@ -49,7 +75,9 @@ export function KanbanPage() {
 
   const loadProjects = async () => {
     const res = await api.get<{ projects: Project[] }>("/projects");
-    setProjects(res.data.projects || []);
+    const projectList = res.data.projects || [];
+    setProjects(projectList);
+    return projectList;
   };
 
   const loadTasksForProject = async (projectId: string) => {
@@ -60,15 +88,12 @@ export function KanbanPage() {
   const loadAllTasks = async () => {
     try {
       setLoading(true);
-      await loadProjects();
 
-      // If "all", fetch tasks for all projects
+      const projectList = await loadProjects();
+
       if (selectedProject === "all") {
-        const pRes = await api.get<{ projects: Project[] }>("/projects");
-        const plist = pRes.data.projects || [];
-
         const chunks = await Promise.all(
-          plist.map(async (p) => {
+          projectList.map(async (p) => {
             try {
               const tasks = await loadTasksForProject(p._id);
               return tasks.map((t) => ({ ...t, projectId: p._id }));
@@ -93,8 +118,13 @@ export function KanbanPage() {
 
   useEffect(() => {
     loadAllTasks();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedProject]);
+
+  const visibleColumns = useMemo(() => {
+    return preferences.showCompletedTasks
+      ? columns
+      : columns.filter((column) => column.id !== "done");
+  }, [preferences.showCompletedTasks]);
 
   const tasksByColumn = useMemo(() => {
     const grouped: Record<string, Task[]> = {
@@ -109,6 +139,7 @@ export function KanbanPage() {
       const col = normalizeStatus(t.status);
       grouped[col].push(t);
     }
+
     return grouped;
   }, [allTasks]);
 
@@ -121,20 +152,23 @@ export function KanbanPage() {
 
   const handleDrop = async (e: React.DragEvent, targetColumn: string) => {
     e.preventDefault();
+
     const taskId = e.dataTransfer.getData("taskId");
     const sourceColumn = e.dataTransfer.getData("sourceColumn");
 
     if (!taskId || !sourceColumn || sourceColumn === targetColumn) return;
 
-    // Update UI optimistically
     setAllTasks((prev) =>
       prev.map((t) => (t._id === taskId ? { ...t, status: targetColumn } : t))
     );
 
-    toast.success(`Task moved to ${targetColumn.replace("-", " ")}`);
-
-    // If you have an endpoint to update status, enable this:
-    // await api.patch(`/tasks/${taskId}`, { status: targetColumn });
+    try {
+      await api.patch(`/tasks/${taskId}`, { status: targetColumn });
+      toast.success(`Task moved to ${targetColumn.replace("-", " ")}`);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || "Failed to update task status");
+      await loadAllTasks();
+    }
   };
 
   const getPriorityColor = (priority?: string) => {
@@ -145,16 +179,19 @@ export function KanbanPage() {
     return "outline";
   };
 
-  const totalTasks = Object.values(tasksByColumn).reduce((sum, col) => sum + col.length, 0);
+  const totalTasks = visibleColumns.reduce(
+    (sum, column) => sum + (tasksByColumn[column.id]?.length || 0),
+    0
+  );
+
   const doneCount = tasksByColumn.done.length;
 
   return (
-    <div className="p-6 space-y-6 h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6 h-full flex flex-col bg-background text-foreground">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl text-gray-900 mb-2">Kanban Board</h1>
-          <p className="text-gray-600">Drag and drop tasks to update their status</p>
+          <h1 className="text-3xl font-semibold mb-2">Kanban Board</h1>
+          <p className="text-muted-foreground">Drag and drop tasks to update their status</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -175,16 +212,16 @@ export function KanbanPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-5 gap-4">
-        {columns.map((column) => {
+      <div className={`grid gap-4 ${visibleColumns.length === 5 ? "grid-cols-5" : "grid-cols-4"}`}>
+        {visibleColumns.map((column) => {
           const count = tasksByColumn[column.id]?.length || 0;
+
           return (
-            <Card key={column.id}>
+            <Card key={column.id} className="border-border bg-card text-card-foreground">
               <CardContent className="pt-6">
                 <div className="text-center">
-                  <p className="text-sm text-gray-500">{column.title}</p>
-                  <p className="text-2xl text-gray-900 mt-1">{count}</p>
+                  <p className="text-sm text-muted-foreground">{column.title}</p>
+                  <p className="text-2xl font-semibold mt-1">{count}</p>
                 </div>
               </CardContent>
             </Card>
@@ -192,15 +229,16 @@ export function KanbanPage() {
         })}
       </div>
 
-      {/* Kanban Board */}
       <div className="flex-1 flex gap-4 overflow-x-auto pb-4">
-        {columns.map((column) => (
+        {visibleColumns.map((column) => (
           <div key={column.id} className="flex-1 min-w-80 flex flex-col">
-            <div className={`${column.color} p-3 rounded-t-lg border-b-2 border-gray-300`}>
+            <div className={`${COLUMN_STYLES[column.id]} p-3 rounded-t-lg border-b border-border`}>
               <div className="flex items-center justify-between">
-                <h3 className="text-gray-900">
+                <h3 className="font-medium text-foreground">
                   {column.title}
-                  <span className="ml-2 text-sm text-gray-600">({tasksByColumn[column.id]?.length || 0})</span>
+                  <span className="ml-2 text-sm text-muted-foreground">
+                    ({tasksByColumn[column.id]?.length || 0})
+                  </span>
                 </h3>
                 <Button variant="ghost" size="icon" className="h-6 w-6">
                   <Plus className="w-4 h-4" />
@@ -209,83 +247,92 @@ export function KanbanPage() {
             </div>
 
             <div
-              className="flex-1 bg-gray-50 p-3 space-y-3 overflow-y-auto rounded-b-lg"
+              className="flex-1 bg-muted/40 p-3 space-y-3 overflow-y-auto rounded-b-lg border-x border-b border-border"
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, column.id)}
             >
-              {loading ? (
-                <div className="text-sm text-gray-600">Loading tasks...</div>
+              {loading || loadingPreferences ? (
+                <div className="text-sm text-muted-foreground">Loading tasks...</div>
               ) : (tasksByColumn[column.id] || []).length === 0 ? (
-                <div className="text-sm text-gray-500">No tasks</div>
+                <div className="text-sm text-muted-foreground">No tasks</div>
               ) : (
-                tasksByColumn[column.id].map((task) => (
-                  <Card
-                    key={task._id}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, task._id, column.id)}
-                    className="cursor-move hover:shadow-lg transition-shadow bg-white"
-                  >
-                    <CardContent className="p-4">
-                      <div className="space-y-3">
-                        <div className="flex items-start justify-between">
-                          <h4 className="text-sm text-gray-900 flex-1">{task.title}</h4>
-                          <Button variant="ghost" size="icon" className="h-6 w-6">
-                            <MoreVertical className="w-3 h-3" />
-                          </Button>
-                        </div>
+                tasksByColumn[column.id].map((task) => {
+                  const assignee = task.assignee || task.assignedTo;
+                  const displayName = assignee?.name || "U";
 
-                        <div className="flex flex-wrap gap-2">
-                          <Badge variant={getPriorityColor(task.priority)} className="text-xs">
-                            {task.priority || "priority"}
-                          </Badge>
-                          {(task.tags || []).map((tag, idx) => (
-                            <Badge key={idx} variant="outline" className="text-xs">
-                              {tag}
+                  return (
+                    <Card
+                      key={task._id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, task._id, column.id)}
+                      className="cursor-move hover:shadow-lg transition-shadow border-border bg-card text-card-foreground"
+                    >
+                      <CardContent className="p-4">
+                        <div className="space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="text-sm font-medium text-card-foreground flex-1">
+                              {task.title}
+                            </h4>
+                            <Button variant="ghost" size="icon" className="h-6 w-6">
+                              <MoreVertical className="w-3 h-3" />
+                            </Button>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant={getPriorityColor(task.priority)} className="text-xs">
+                              {task.priority || "priority"}
                             </Badge>
-                          ))}
-                        </div>
-
-                        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                          <div className="flex items-center gap-3 text-xs text-gray-600">
-                            <div className="flex items-center gap-1">
-                              <MessageSquare className="w-3 h-3" />
-                              {task.commentsCount || 0}
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Paperclip className="w-3 h-3" />
-                              {task.attachmentsCount || 0}
-                            </div>
+                            {(task.tags || []).map((tag, idx) => (
+                              <Badge key={idx} variant="outline" className="text-xs">
+                                {tag}
+                              </Badge>
+                            ))}
                           </div>
 
-                          <Avatar className="h-6 w-6">
-                            <AvatarImage src={task.assignee?.avatar || ""} />
-                            <AvatarFallback>{(task.assignee?.name || "U")[0]}</AvatarFallback>
-                          </Avatar>
-                        </div>
+                          <div className="flex items-center justify-between pt-2 border-t border-border">
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <MessageSquare className="w-3 h-3" />
+                                {task.commentsCount || 0}
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Paperclip className="w-3 h-3" />
+                                {task.attachmentsCount || 0}
+                              </div>
+                            </div>
 
-                        {task.dueDate ? (
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <Calendar className="w-3 h-3" />
-                            {task.dueDate}
+                            <Avatar className="h-6 w-6">
+                              <AvatarImage src={assignee?.avatar || ""} />
+                              <AvatarFallback>{displayName[0]}</AvatarFallback>
+                            </Avatar>
                           </div>
-                        ) : null}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+
+                          {task.dueDate ? (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Calendar className="w-3 h-3" />
+                              {formatDateByPreference(task.dueDate, preferences.dateFormat)}
+                            </div>
+                          ) : null}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })
               )}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Bottom stats */}
-      <div className="flex items-center justify-between bg-white p-4 rounded-lg border border-gray-200">
-        <div className="text-sm text-gray-600">
-          Total Tasks: <span className="text-gray-900">{totalTasks}</span>
+      <div className="flex items-center justify-between bg-card p-4 rounded-lg border border-border text-card-foreground">
+        <div className="text-sm text-muted-foreground">
+          Total Tasks: <span className="text-card-foreground font-medium">{totalTasks}</span>
         </div>
-        <div className="text-sm text-gray-600">
-          Completion Rate: <span className="text-gray-900">{totalTasks > 0 ? Math.round((doneCount / totalTasks) * 100) : 0}%</span>
+        <div className="text-sm text-muted-foreground">
+          Completion Rate:{" "}
+          <span className="text-card-foreground font-medium">
+            {totalTasks > 0 ? Math.round((doneCount / totalTasks) * 100) : 0}%
+          </span>
         </div>
       </div>
     </div>

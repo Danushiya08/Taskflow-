@@ -10,6 +10,63 @@ const userSchema = new mongoose.Schema(
       enum: ["admin", "project-manager", "team-member", "client"],
       default: "team-member",
     },
+
+    // Profile fields
+    firstName: { type: String, trim: true, default: "" },
+    lastName: { type: String, trim: true, default: "" },
+    phone: { type: String, trim: true, default: "" },
+    jobTitle: { type: String, trim: true, default: "" },
+    department: {
+      type: String,
+      enum: ["", "engineering", "design", "marketing", "sales", "operations"],
+      default: "",
+    },
+    bio: { type: String, trim: true, default: "" },
+    avatar: { type: String, default: "" },
+
+    // Notification settings
+    notificationSettings: {
+      emailNotifications: { type: Boolean, default: true },
+      pushNotifications: { type: Boolean, default: true },
+      taskUpdates: { type: Boolean, default: true },
+      projectMilestones: { type: Boolean, default: true },
+      teamMentions: { type: Boolean, default: true },
+      weeklyReports: { type: Boolean, default: false },
+    },
+
+    // Preferences
+    preferences: {
+      language: {
+        type: String,
+        enum: ["en", "ta", "si", "es", "fr"],
+        default: "en",
+      },
+      timezone: {
+        type: String,
+        enum: ["est", "pst", "cst", "gmt", "ist"],
+        default: "gmt",
+      },
+      dateFormat: {
+        type: String,
+        enum: ["mdy", "dmy", "ymd"],
+        default: "mdy",
+      },
+      theme: {
+        type: String,
+        enum: ["light", "dark", "auto"],
+        default: "light",
+      },
+      defaultProjectView: {
+        type: String,
+        enum: ["kanban", "list", "calendar", "timeline"],
+        default: "kanban",
+      },
+      compactMode: { type: Boolean, default: false },
+      showCompletedTasks: { type: Boolean, default: true },
+    },
+
+    // Security
+    twoFactorEnabled: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

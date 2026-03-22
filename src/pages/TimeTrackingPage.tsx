@@ -49,6 +49,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 
+import { useUserPreferences } from "@/hooks/useUserPreferences";
+import { formatDateByPreference } from "@/lib/dateFormat";
+import { mapTimezonePreference } from "@/lib/timezone";
+
 type Role = "admin" | "project-manager" | "team-member" | "client";
 
 type Me = {
@@ -70,11 +74,10 @@ type TimeEntryStatus = "draft" | "pending" | "approved" | "rejected";
 type TimeEntry = {
   _id: string;
   userId: string;
-  date: string; // YYYY-MM-DD
+  date: string;
   durationSeconds: number;
   notes?: string;
   status: TimeEntryStatus;
-
   taskId:
     | string
     | {
@@ -104,7 +107,6 @@ type TodaySummary = {
 type Timesheet = {
   id: string | null;
   _id?: string;
-
   weekStart: string;
   weekEnd: string;
   totalSeconds: number;
@@ -153,18 +155,11 @@ function endOfWeekSunday(date: Date) {
   return e;
 }
 
-function weekLabelFromISO(weekStartISO: string) {
-  const ws = new Date(weekStartISO + "T00:00:00");
-  const we = endOfWeekSunday(ws);
-
-  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  const s = ws.toLocaleDateString(undefined, opts);
-  const e = we.toLocaleDateString(undefined, opts);
-  const y = we.getFullYear();
-  return `${s} - ${e}, ${y}`;
+function getTimesheetId(ts: any): string | null {
+  return ts?.id || ts?._id || null;
 }
 
-function exportEntriesAsPDF(entries: TimeEntry[]) {
+function exportEntriesAsPDF(entries: TimeEntry[], dateFormat: "mdy" | "dmy" | "ymd") {
   const rows = entries
     .map((e) => {
       const taskTitle =
@@ -174,7 +169,7 @@ function exportEntriesAsPDF(entries: TimeEntry[]) {
 
       return `
         <tr>
-          <td>${e.date}</td>
+          <td>${formatDateByPreference(e.date, dateFormat)}</td>
           <td>${projectName}</td>
           <td>${taskTitle}</td>
           <td>${formatHMS(e.durationSeconds)}</td>
@@ -235,10 +230,6 @@ function exportEntriesAsPDF(entries: TimeEntry[]) {
   w.document.close();
 }
 
-function getTimesheetId(ts: any): string | null {
-  return ts?.id || ts?._id || null;
-}
-
 export function TimeTrackingPage() {
   const [me, setMe] = useState<Me | null>(null);
   const role: Role | null = me?.role ?? null;
@@ -271,7 +262,22 @@ export function TimeTrackingPage() {
     timesheets: true,
   });
 
+  const { preferences, loadingPreferences } = useUserPreferences();
+  const timezone = useMemo(
+    () => mapTimezonePreference(preferences.timezone),
+    [preferences.timezone]
+  );
+
   const todayISO = useMemo(() => toISODate(new Date()), []);
+
+  function weekLabelFromISO(weekStartISO: string) {
+    const ws = new Date(weekStartISO + "T00:00:00");
+    const we = endOfWeekSunday(ws);
+
+    const start = formatDateByPreference(toISODate(ws), preferences.dateFormat, timezone);
+    const end = formatDateByPreference(toISODate(we), preferences.dateFormat, timezone);
+    return `${start} - ${end}`;
+  }
 
   useEffect(() => {
     if (!isTracking) {
@@ -297,7 +303,6 @@ export function TimeTrackingPage() {
       try {
         setLoading((p) => ({ ...p, page: true }));
 
-        // ✅ baseURL="/api" so this hits "/api/me"
         const meRes = await api.get<Me>("/me");
         setMe(meRes.data);
 
@@ -311,14 +316,12 @@ export function TimeTrackingPage() {
     };
 
     run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadTasks = async () => {
     try {
       setLoading((p) => ({ ...p, tasks: true }));
 
-      // GET /api/projects
       const pRes = await api.get<{ projects: any[] }>("/projects");
       const projects = pRes.data.projects || [];
 
@@ -329,7 +332,6 @@ export function TimeTrackingPage() {
         const projectName = p.name;
 
         try {
-          // ✅ GET /api/projects/:id/tasks
           const tRes = await api.get<{ tasks: any[] }>(`/projects/${projectId}/tasks`);
           const tlist = (tRes.data.tasks || []).map((t: any) => ({
             _id: t._id,
@@ -355,7 +357,6 @@ export function TimeTrackingPage() {
   const loadEntries = async () => {
     try {
       setLoading((p) => ({ ...p, entries: true }));
-      // GET /api/time-entries
       const res = await api.get<{ entries: TimeEntry[] }>("/time-entries");
       setEntries(res.data.entries || []);
     } catch (e: any) {
@@ -368,7 +369,6 @@ export function TimeTrackingPage() {
   const loadTodaySummary = async () => {
     try {
       setLoading((p) => ({ ...p, summary: true }));
-      // GET /api/time-entries/summary/today
       const res = await api.get<TodaySummary>("/time-entries/summary/today");
       setTodaySummary(res.data);
     } catch {
@@ -381,7 +381,6 @@ export function TimeTrackingPage() {
   const loadTimesheets = async () => {
     try {
       setLoading((p) => ({ ...p, timesheets: true }));
-      // GET /api/timesheets
       const res = await api.get<{ timesheets: any[] }>("/timesheets");
 
       const normalized: Timesheet[] = (res.data.timesheets || []).map((ts: any) => ({
@@ -484,7 +483,6 @@ export function TimeTrackingPage() {
     try {
       setSaving(true);
 
-      // POST /api/time-entries
       await api.post("/time-entries", {
         taskId: selectedTaskId,
         durationSeconds,
@@ -504,7 +502,6 @@ export function TimeTrackingPage() {
 
   const deleteEntry = async (id: string) => {
     try {
-      // ✅ DELETE /api/time-entries/:id
       await api.delete(`/time-entries/${id}`);
       toast.success("Entry deleted");
       await Promise.all([loadEntries(), loadTodaySummary(), loadTimesheets()]);
@@ -516,7 +513,6 @@ export function TimeTrackingPage() {
   const submitCurrentWeek = async () => {
     try {
       const ws = toISODate(startOfWeekMonday(new Date()));
-      // POST /api/timesheets/submit
       await api.post("/timesheets/submit", { weekStart: ws });
       toast.success("Timesheet submitted");
       await loadTimesheets();
@@ -527,7 +523,6 @@ export function TimeTrackingPage() {
 
   const reviewTimesheet = async (timesheetId: string, action: "approved" | "rejected") => {
     try {
-      // PATCH /api/timesheets/:id/review
       await api.patch(`/timesheets/${timesheetId}/review`, { action });
       toast.success(`Timesheet ${action}`);
       await loadTimesheets();
@@ -542,7 +537,6 @@ export function TimeTrackingPage() {
       setDetailsLoading(true);
       setDetailsTitle(weekLabelFromISO(weekStart));
 
-      // GET /api/time-entries?from=...&to=...
       const res = await api.get<{ entries: TimeEntry[] }>(
         `/time-entries?from=${encodeURIComponent(weekStart)}&to=${encodeURIComponent(weekEnd)}`
       );
@@ -556,17 +550,26 @@ export function TimeTrackingPage() {
     }
   };
 
+  if (loading.page || loadingPreferences) {
+    return (
+      <div className="p-6 space-y-2 bg-background text-foreground">
+        <h1 className="text-3xl font-semibold">Time Tracking</h1>
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-start justify-between gap-4">
+    <div className="p-6 space-y-6 bg-background text-foreground">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl text-gray-900 mb-2">Time Tracking</h1>
-          <p className="text-gray-600">Track time spent on tasks and manage timesheets</p>
-          <div className="mt-2 text-sm text-gray-500">
+          <h1 className="text-3xl font-semibold mb-2">Time Tracking</h1>
+          <p className="text-muted-foreground">Track time spent on tasks and manage timesheets</p>
+          <div className="mt-2 text-sm text-muted-foreground">
             {me ? (
               <>
-                Logged in as <span className="text-gray-900">{me.name}</span>{" "}
-                (<span className="text-gray-900">{me.role}</span>)
+                Logged in as <span className="text-foreground">{me.name}</span> (
+                <span className="text-foreground">{me.role}</span>)
               </>
             ) : (
               "Loading user..."
@@ -595,7 +598,7 @@ export function TimeTrackingPage() {
 
         <TabsContent value="timer" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-2">
+            <Card className="lg:col-span-2 border-border bg-card text-card-foreground">
               <CardHeader>
                 <CardTitle>Time Tracker</CardTitle>
                 <CardDescription>Start tracking time for your current task</CardDescription>
@@ -603,14 +606,14 @@ export function TimeTrackingPage() {
 
               <CardContent className="space-y-6">
                 <div className="flex items-center justify-center py-8">
-                  <div className={`text-6xl font-mono ${isTracking ? "text-blue-600" : "text-gray-900"}`}>
+                  <div className={`text-6xl font-mono ${isTracking ? "text-primary" : "text-foreground"}`}>
                     {formatHMS(elapsedSeconds)}
                   </div>
                 </div>
 
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm text-gray-600">Select Task</label>
+                    <label className="text-sm text-muted-foreground">Select Task</label>
                     <Select
                       value={selectedTaskId}
                       onValueChange={(val) => {
@@ -662,40 +665,42 @@ export function TimeTrackingPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="border-border bg-card text-card-foreground">
               <CardHeader>
                 <CardTitle>Today's Summary</CardTitle>
-                <CardDescription>{new Date().toLocaleDateString()}</CardDescription>
+                <CardDescription>
+                  {formatDateByPreference(todayISO, preferences.dateFormat, timezone)}
+                </CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Total Time</span>
-                    <span className="text-lg text-gray-900">{formatHMS(summaryDisplay?.totalSeconds || 0)}</span>
+                    <span className="text-sm text-muted-foreground">Total Time</span>
+                    <span className="text-lg text-foreground">{formatHMS(summaryDisplay?.totalSeconds || 0)}</span>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Tasks Tracked</span>
-                    <span className="text-lg text-gray-900">{summaryDisplay?.tasksTracked || 0}</span>
+                    <span className="text-sm text-muted-foreground">Tasks Tracked</span>
+                    <span className="text-lg text-foreground">{summaryDisplay?.tasksTracked || 0}</span>
                   </div>
 
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Projects</span>
-                    <span className="text-lg text-gray-900">{summaryDisplay?.projectsTracked || 0}</span>
+                    <span className="text-sm text-muted-foreground">Projects</span>
+                    <span className="text-lg text-foreground">{summaryDisplay?.projectsTracked || 0}</span>
                   </div>
                 </div>
 
-                <div className="pt-4 border-t border-gray-200 space-y-3">
-                  <h4 className="text-sm text-gray-900">Breakdown</h4>
+                <div className="pt-4 border-t border-border space-y-3">
+                  <h4 className="text-sm text-foreground">Breakdown</h4>
                   <div className="space-y-2">
                     {breakdownRows.length === 0 ? (
-                      <div className="text-sm text-gray-500">No entries logged today.</div>
+                      <div className="text-sm text-muted-foreground">No entries logged today.</div>
                     ) : (
                       breakdownRows.map((b) => (
                         <div key={b.projectId} className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">{b.projectName}</span>
-                          <span className="text-gray-900">{formatHMS(b.sec)}</span>
+                          <span className="text-muted-foreground">{b.projectName}</span>
+                          <span className="text-foreground">{formatHMS(b.sec)}</span>
                         </div>
                       ))
                     )}
@@ -707,15 +712,18 @@ export function TimeTrackingPage() {
         </TabsContent>
 
         <TabsContent value="recent">
-          <Card>
+          <Card className="border-border bg-card text-card-foreground">
             <CardHeader>
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <CardTitle>Recent Time Entries</CardTitle>
                   <CardDescription>Your latest tracked activities</CardDescription>
                 </div>
 
-                <Button variant="outline" onClick={() => exportEntriesAsPDF(recentEntries)}>
+                <Button
+                  variant="outline"
+                  onClick={() => exportEntriesAsPDF(recentEntries, preferences.dateFormat)}
+                >
                   <Download className="w-4 h-4 mr-2" />
                   Export PDF
                 </Button>
@@ -725,7 +733,7 @@ export function TimeTrackingPage() {
             <CardContent>
               <div className="space-y-4">
                 {recentEntries.length === 0 ? (
-                  <div className="text-sm text-gray-500">No time entries yet.</div>
+                  <div className="text-sm text-muted-foreground">No time entries yet.</div>
                 ) : (
                   recentEntries.map((entry) => {
                     const taskTitle =
@@ -737,14 +745,14 @@ export function TimeTrackingPage() {
                     return (
                       <div
                         key={entry._id}
-                        className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors"
+                        className="flex items-center justify-between p-4 border border-border rounded-lg hover:border-primary/50 transition-colors bg-card"
                       >
                         <div className="flex-1">
-                          <h4 className="text-gray-900">{taskTitle}</h4>
-                          <div className="flex flex-wrap items-center gap-4 mt-1 text-sm text-gray-600">
+                          <h4 className="text-foreground">{taskTitle}</h4>
+                          <div className="flex flex-wrap items-center gap-4 mt-1 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
-                              {entry.date}
+                              {formatDateByPreference(entry.date, preferences.dateFormat, timezone)}
                             </span>
                             <span className="flex items-center gap-1">
                               <Clock className="w-3 h-3" />
@@ -787,9 +795,9 @@ export function TimeTrackingPage() {
         </TabsContent>
 
         <TabsContent value="timesheets">
-          <Card>
+          <Card className="border-border bg-card text-card-foreground">
             <CardHeader>
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <CardTitle>Timesheets</CardTitle>
                   <CardDescription>Submit and manage your weekly timesheets</CardDescription>
@@ -805,7 +813,7 @@ export function TimeTrackingPage() {
             <CardContent>
               <div className="space-y-4">
                 {timesheets.length === 0 ? (
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-muted-foreground">
                     No timesheets found yet. Submit the current week to create one.
                   </div>
                 ) : (
@@ -822,11 +830,11 @@ export function TimeTrackingPage() {
                         : "outline";
 
                     return (
-                      <div key={tsId || ts.weekStart} className="p-4 border border-gray-200 rounded-lg">
+                      <div key={tsId || ts.weekStart} className="p-4 border border-border rounded-lg bg-card">
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                              <h4 className="text-gray-900">{weekLabelFromISO(ts.weekStart)}</h4>
+                            <div className="flex items-center gap-3 mb-2 flex-wrap">
+                              <h4 className="text-foreground">{weekLabelFromISO(ts.weekStart)}</h4>
 
                               <Badge variant={badgeVariant}>
                                 {ts.status === "approved" && <CheckCircle2 className="w-3 h-3 mr-1" />}
@@ -837,25 +845,29 @@ export function TimeTrackingPage() {
 
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                               <div>
-                                <span className="text-gray-500">Total Hours:</span>
-                                <span className="text-gray-900 ml-1">{ts.totalHours}</span>
+                                <span className="text-muted-foreground">Total Hours:</span>
+                                <span className="text-foreground ml-1">{ts.totalHours}</span>
                               </div>
                               <div>
-                                <span className="text-gray-500">Entries:</span>
-                                <span className="text-gray-900 ml-1">{ts.count}</span>
+                                <span className="text-muted-foreground">Entries:</span>
+                                <span className="text-foreground ml-1">{ts.count}</span>
                               </div>
                               <div>
-                                <span className="text-gray-500">Week Start:</span>
-                                <span className="text-gray-900 ml-1">{ts.weekStart}</span>
+                                <span className="text-muted-foreground">Week Start:</span>
+                                <span className="text-foreground ml-1">
+                                  {formatDateByPreference(ts.weekStart, preferences.dateFormat, timezone)}
+                                </span>
                               </div>
                               <div>
-                                <span className="text-gray-500">Week End:</span>
-                                <span className="text-gray-900 ml-1">{ts.weekEnd}</span>
+                                <span className="text-muted-foreground">Week End:</span>
+                                <span className="text-foreground ml-1">
+                                  {formatDateByPreference(ts.weekEnd, preferences.dateFormat, timezone)}
+                                </span>
                               </div>
                             </div>
 
                             {canReview && ts.status === "pending" && (
-                              <div className="mt-4 flex gap-2">
+                              <div className="mt-4 flex gap-2 flex-wrap">
                                 <Button disabled={!tsId} onClick={() => tsId && reviewTimesheet(tsId, "approved")}>
                                   Approve
                                 </Button>
@@ -868,7 +880,7 @@ export function TimeTrackingPage() {
                                 </Button>
 
                                 {!tsId && (
-                                  <div className="text-xs text-gray-500 self-center">
+                                  <div className="text-xs text-muted-foreground self-center">
                                     Backend must return timesheet id (_id or id) in GET /api/timesheets
                                   </div>
                                 )}
@@ -889,18 +901,18 @@ export function TimeTrackingPage() {
           </Card>
 
           <Dialog open={openDetails} onOpenChange={setOpenDetails}>
-            <DialogContent className="max-w-3xl">
+            <DialogContent className="max-w-3xl border-border bg-card text-card-foreground">
               <DialogHeader>
                 <DialogTitle>Timesheet Details</DialogTitle>
                 <DialogDescription>{detailsTitle}</DialogDescription>
               </DialogHeader>
 
               {detailsLoading ? (
-                <div className="text-sm text-gray-500">Loading...</div>
+                <div className="text-sm text-muted-foreground">Loading...</div>
               ) : (
                 <div className="space-y-3">
                   {detailsEntries.length === 0 ? (
-                    <div className="text-sm text-gray-500">No entries in this week.</div>
+                    <div className="text-sm text-muted-foreground">No entries in this week.</div>
                   ) : (
                     detailsEntries.map((e) => {
                       const taskTitle =
@@ -909,10 +921,10 @@ export function TimeTrackingPage() {
                         typeof e.projectId === "string" ? "Project" : (e.projectId as any)?.name;
 
                       return (
-                        <div key={e._id} className="p-3 border border-gray-200 rounded-lg">
-                          <div className="text-gray-900">{taskTitle}</div>
-                          <div className="text-sm text-gray-600 mt-1 flex flex-wrap gap-3">
-                            <span>{e.date}</span>
+                        <div key={e._id} className="p-3 border border-border rounded-lg bg-card">
+                          <div className="text-foreground">{taskTitle}</div>
+                          <div className="text-sm text-muted-foreground mt-1 flex flex-wrap gap-3">
+                            <span>{formatDateByPreference(e.date, preferences.dateFormat, timezone)}</span>
                             <span>{formatHMS(e.durationSeconds)}</span>
                             <Badge variant="outline">{projectName}</Badge>
                           </div>

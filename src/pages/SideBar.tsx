@@ -87,15 +87,12 @@ export function Sidebar({ currentPage, onNavigate, currentUser }: SidebarProps) 
       icon: DollarSign,
       roles: ["admin", "project-manager"] as Role[],
     },
-
-    // ✅ UPDATED: client can now see Tasks in sidebar
     {
       id: "tasks",
       label: "Tasks",
       icon: ListChecks,
       roles: ["admin", "project-manager", "team-member", "client"] as Role[],
     },
-
     {
       id: "settings",
       label: "Settings",
@@ -104,17 +101,16 @@ export function Sidebar({ currentPage, onNavigate, currentUser }: SidebarProps) 
     },
   ];
 
-  // ✅ Only show items allowed for this role
   const visibleItems = menuItems.filter((item) => item.roles.includes(currentUser.role));
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
-      <div className="p-6 border-b border-gray-200">
+    <div className="w-64 bg-card border-r border-border flex flex-col text-card-foreground">
+      <div className="p-6 border-b border-border">
         <div className="flex items-center gap-2">
           <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-2 rounded-lg">
             <LayoutDashboard className="w-6 h-6 text-white" />
           </div>
-          <h1 className="text-xl text-gray-900">TaskFlow</h1>
+          <h1 className="text-xl font-semibold text-card-foreground">TaskFlow</h1>
         </div>
       </div>
 
@@ -128,8 +124,10 @@ export function Sidebar({ currentPage, onNavigate, currentUser }: SidebarProps) 
               key={item.id}
               onClick={() => onNavigate(item.id)}
               className={cn(
-                "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors",
-                isActive ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-50"
+                "w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors text-sm",
+                isActive
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}
             >
               <Icon className="w-5 h-5" />
@@ -139,11 +137,13 @@ export function Sidebar({ currentPage, onNavigate, currentUser }: SidebarProps) 
         })}
       </nav>
 
-      <div className="p-4 border-t border-gray-200">
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-lg">
-          <h3 className="text-sm text-gray-900 mb-1">Need Help?</h3>
-          <p className="text-xs text-gray-600 mb-3">Check our documentation and tutorials</p>
-          <button className="text-xs text-blue-600 hover:underline">View Docs →</button>
+      <div className="p-4 border-t border-border">
+        <div className="bg-muted p-4 rounded-lg">
+          <h3 className="text-sm font-medium text-card-foreground mb-1">Need Help?</h3>
+          <p className="text-xs text-muted-foreground mb-3">
+            Check our documentation and tutorials
+          </p>
+          <button className="text-xs text-primary hover:underline">View Docs →</button>
         </div>
       </div>
     </div>

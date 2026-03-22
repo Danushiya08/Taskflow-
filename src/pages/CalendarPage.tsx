@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, Clock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,17 +18,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import api from "@/lib/api";
+import { useUserPreferences } from "@/hooks/useUserPreferences";
+import { formatDateByPreference, formatTimeWithTimezone } from "@/lib/dateFormat";
+import { mapTimezonePreference } from "@/lib/timezone";
 
 type CalendarEvent = {
   _id: string;
   title: string;
   description?: string;
-  date: string; // YYYY-MM-DD
-  time?: string; // "10:00"
+  date: string;
+  time?: string;
   type?: "meeting" | "deadline" | "review" | "planning" | "presentation";
   projectId?: string;
   projectName?: string;
-  color?: string; // backend can send; frontend fallback computes
+  color?: string;
   source?: "task" | "project" | "custom";
 };
 
@@ -38,12 +41,12 @@ type ProjectLite = {
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  meeting: "#3B82F6", // blue-500
-  deadline: "#EF4444", // red-500
-  review: "#A855F7", // purple-500
-  planning: "#22C55E", // green-500
-  presentation: "#EAB308", // yellow-500
-  event: "#64748B", // slate-500 fallback
+  meeting: "#3B82F6",
+  deadline: "#EF4444",
+  review: "#A855F7",
+  planning: "#22C55E",
+  presentation: "#EAB308",
+  event: "#64748B",
 };
 
 const getTypeColor = (type?: string) => TYPE_COLORS[type || ""] || TYPE_COLORS.event;
@@ -58,7 +61,13 @@ export function CalendarPage() {
   const [projects, setProjects] = useState<ProjectLite[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
 
-  // ----- form state -----
+  const { preferences, loadingPreferences } = useUserPreferences();
+
+  const timezone = useMemo(
+    () => mapTimezonePreference(preferences.timezone),
+    [preferences.timezone]
+  );
+
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -83,7 +92,9 @@ export function CalendarPage() {
       setLoading(true);
       const year = currentDate.getFullYear();
       const month = String(currentDate.getMonth() + 1).padStart(2, "0");
-      const res = await api.get<{ events: CalendarEvent[] }>(`/calendar/events?month=${year}-${month}`);
+      const res = await api.get<{ events: CalendarEvent[] }>(
+        `/calendar/events?month=${year}-${month}`
+      );
       setEvents(res.data.events || []);
     } catch {
       setEvents([]);
@@ -92,7 +103,6 @@ export function CalendarPage() {
     }
   };
 
-  // Fetch projects for the dropdown (uses a calendar endpoint we add below)
   const loadProjects = async () => {
     try {
       setProjectsLoading(true);
@@ -107,13 +117,11 @@ export function CalendarPage() {
 
   useEffect(() => {
     loadEvents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentDate]);
 
   useEffect(() => {
     if (isAddEventOpen) loadProjects();
     if (!isAddEventOpen) resetForm();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAddEventOpen]);
 
   const getDaysInMonth = (date: Date) => {
@@ -128,18 +136,30 @@ export function CalendarPage() {
 
   const { daysInMonth, startingDayOfWeek } = getDaysInMonth(currentDate);
 
-  const previousMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-  const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  const previousMonth = () =>
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+
+  const nextMonth = () =>
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+
   const goToday = () => setCurrentDate(new Date());
 
   const getEventsForDate = (day: number) => {
-    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}-${String(day).padStart(2, "0")}`;
+
     return events.filter((event) => event.date === dateStr);
   };
 
   const isToday = (day: number) => {
     const today = new Date();
-    return day === today.getDate() && currentDate.getMonth() === today.getMonth() && currentDate.getFullYear() === today.getFullYear();
+    return (
+      day === today.getDate() &&
+      currentDate.getMonth() === today.getMonth() &&
+      currentDate.getFullYear() === today.getFullYear()
+    );
   };
 
   const handleAddEvent = async () => {
@@ -152,7 +172,7 @@ export function CalendarPage() {
       await api.post(`/calendar/events`, {
         title: form.title.trim(),
         description: form.description?.trim() || "",
-        date: form.date, // YYYY-MM-DD
+        date: form.date,
         time: form.time || "",
         type: form.type,
         projectId: form.projectId,
@@ -166,24 +186,33 @@ export function CalendarPage() {
     }
   };
 
-  const monthName = currentDate.toLocaleString("default", { month: "long", year: "numeric" });
+  const monthName = currentDate.toLocaleString("default", {
+    month: "long",
+    year: "numeric",
+  });
 
   const upcomingEvents = useMemo(() => {
     const now = new Date();
     const todayYMD = now.toISOString().slice(0, 10);
+
     return [...events]
       .filter((e) => e.date >= todayYMD)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .sort((a, b) => {
+        const aDateTime = new Date(`${a.date}T${a.time || "00:00"}:00`).getTime();
+        const bDateTime = new Date(`${b.date}T${b.time || "00:00"}:00`).getTime();
+        return aDateTime - bDateTime;
+      })
       .slice(0, 5);
   }, [events]);
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6 bg-background text-foreground">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl text-gray-900 mb-2">Calendar</h1>
-          <p className="text-gray-600">View and manage project deadlines, meetings, and events</p>
+          <h1 className="text-3xl font-semibold mb-2">Calendar</h1>
+          <p className="text-muted-foreground">
+            View and manage project deadlines, meetings, and events
+          </p>
         </div>
 
         <Dialog open={isAddEventOpen} onOpenChange={setIsAddEventOpen}>
@@ -194,10 +223,12 @@ export function CalendarPage() {
             </Button>
           </DialogTrigger>
 
-          <DialogContent>
+          <DialogContent className="border-border bg-card text-card-foreground">
             <DialogHeader>
               <DialogTitle>Add New Event</DialogTitle>
-              <DialogDescription>Schedule a meeting, deadline, or milestone</DialogDescription>
+              <DialogDescription>
+                Schedule a meeting, deadline, or milestone
+              </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
@@ -232,6 +263,7 @@ export function CalendarPage() {
                     onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
                   />
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="event-time">Time</Label>
                   <Input
@@ -245,7 +277,15 @@ export function CalendarPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="event-type">Type</Label>
-                <Select value={form.type} onValueChange={(v) => setForm((p) => ({ ...p, type: v as any }))}>
+                <Select
+                  value={form.type}
+                  onValueChange={(v) =>
+                    setForm((p) => ({
+                      ...p,
+                      type: v as "" | "meeting" | "deadline" | "review" | "planning" | "presentation",
+                    }))
+                  }
+                >
                   <SelectTrigger id="event-type">
                     <SelectValue placeholder="Select type" />
                   </SelectTrigger>
@@ -261,9 +301,14 @@ export function CalendarPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="event-project">Project</Label>
-                <Select value={form.projectId} onValueChange={(v) => setForm((p) => ({ ...p, projectId: v }))}>
+                <Select
+                  value={form.projectId}
+                  onValueChange={(v) => setForm((p) => ({ ...p, projectId: v }))}
+                >
                   <SelectTrigger id="event-project">
-                    <SelectValue placeholder={projectsLoading ? "Loading projects..." : "Select project"} />
+                    <SelectValue
+                      placeholder={projectsLoading ? "Loading projects..." : "Select project"}
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {projects.length === 0 ? (
@@ -293,10 +338,9 @@ export function CalendarPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendar */}
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 border-border bg-card text-card-foreground">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-3">
               <CardTitle>{monthName}</CardTitle>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" onClick={previousMonth}>
@@ -313,18 +357,18 @@ export function CalendarPage() {
           </CardHeader>
 
           <CardContent>
-            {loading ? (
-              <div className="text-sm text-gray-600">Loading events...</div>
+            {loading || loadingPreferences ? (
+              <div className="text-sm text-muted-foreground">Loading events...</div>
             ) : (
               <div className="grid grid-cols-7 gap-1">
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-                  <div key={day} className="text-center text-sm text-gray-600 p-2">
+                  <div key={day} className="text-center text-sm text-muted-foreground p-2">
                     {day}
                   </div>
                 ))}
 
                 {Array.from({ length: startingDayOfWeek }).map((_, idx) => (
-                  <div key={`empty-${idx}`} className="aspect-square p-1"></div>
+                  <div key={`empty-${idx}`} className="aspect-square p-1" />
                 ))}
 
                 {Array.from({ length: daysInMonth }).map((_, idx) => {
@@ -335,18 +379,23 @@ export function CalendarPage() {
                   return (
                     <div
                       key={day}
-                      className={`aspect-square p-1 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors ${
-                        today ? "bg-blue-50 border-blue-300" : ""
+                      className={`aspect-square p-1 border border-border rounded-lg hover:bg-muted cursor-pointer transition-colors ${
+                        today ? "bg-primary/10 border-primary/40" : ""
                       }`}
                     >
                       <div className="h-full flex flex-col">
-                        <div className={`text-sm text-center mb-1 ${today ? "text-blue-600" : "text-gray-900"}`}>
+                        <div
+                          className={`text-sm text-center mb-1 ${
+                            today ? "text-primary font-medium" : "text-card-foreground"
+                          }`}
+                        >
                           {day}
                         </div>
 
                         <div className="flex-1 space-y-1 overflow-hidden">
                           {dayEvents.slice(0, 2).map((event) => {
                             const bg = event.color || getTypeColor(event.type);
+
                             return (
                               <div
                                 key={event._id}
@@ -360,7 +409,9 @@ export function CalendarPage() {
                           })}
 
                           {dayEvents.length > 2 && (
-                            <div className="text-xs text-gray-600 text-center">+{dayEvents.length - 2} more</div>
+                            <div className="text-xs text-muted-foreground text-center">
+                              +{dayEvents.length - 2} more
+                            </div>
                           )}
                         </div>
                       </div>
@@ -372,37 +423,58 @@ export function CalendarPage() {
           </CardContent>
         </Card>
 
-        {/* Upcoming Events */}
-        <Card>
+        <Card className="border-border bg-card text-card-foreground">
           <CardHeader>
             <CardTitle>Upcoming Events</CardTitle>
           </CardHeader>
 
           <CardContent>
             {upcomingEvents.length === 0 ? (
-              <div className="text-sm text-gray-500">No upcoming events.</div>
+              <div className="text-sm text-muted-foreground">No upcoming events.</div>
             ) : (
               <div className="space-y-3">
                 {upcomingEvents.map((event) => {
                   const col = event.color || getTypeColor(event.type);
+
                   return (
                     <div
                       key={event._id}
-                      className="p-3 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors cursor-pointer"
+                      className="p-3 border border-border rounded-lg hover:border-primary/40 transition-colors cursor-pointer bg-card"
                     >
                       <div className="flex items-start gap-2">
-                        <div className="w-1 rounded" style={{ backgroundColor: col, minHeight: "100%" }}></div>
+                        <div
+                          className="w-1 rounded"
+                          style={{ backgroundColor: col, minHeight: "100%" }}
+                        />
                         <div className="flex-1">
-                          <h4 className="text-sm text-gray-900 mb-1">{event.title}</h4>
-                          <div className="space-y-1 text-xs text-gray-600">
+                          <h4 className="text-sm font-medium text-card-foreground mb-1">
+                            {event.title}
+                          </h4>
+
+                          <div className="space-y-1 text-xs text-muted-foreground">
                             <div className="flex items-center gap-1">
                               <CalendarIcon className="w-3 h-3" />
-                              {event.date} {event.time ? `at ${event.time}` : ""}
+                              {formatDateByPreference(
+                                event.date,
+                                preferences.dateFormat,
+                                timezone
+                              )}
                             </div>
+
+                            {event.time ? (
+                              <div className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {formatTimeWithTimezone(event.date, event.time, timezone)}
+                              </div>
+                            ) : null}
+
                             <Badge variant="outline" className="text-xs">
                               {event.type || "event"}
                             </Badge>
-                            <div className="text-xs text-gray-500">{event.projectName || "Project"}</div>
+
+                            <div className="text-xs text-muted-foreground">
+                              {event.projectName || "Project"}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -415,32 +487,51 @@ export function CalendarPage() {
         </Card>
       </div>
 
-      {/* Event Legend */}
-      <Card>
+      <Card className="border-border bg-card text-card-foreground">
         <CardHeader>
           <CardTitle>Event Types</CardTitle>
         </CardHeader>
+
         <CardContent>
           <div className="flex flex-wrap gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded" style={{ backgroundColor: TYPE_COLORS.meeting }}></div>
-              <span className="text-sm text-gray-600">Meeting</span>
+              <div
+                className="w-4 h-4 rounded"
+                style={{ backgroundColor: TYPE_COLORS.meeting }}
+              />
+              <span className="text-sm text-muted-foreground">Meeting</span>
             </div>
+
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded" style={{ backgroundColor: TYPE_COLORS.deadline }}></div>
-              <span className="text-sm text-gray-600">Deadline</span>
+              <div
+                className="w-4 h-4 rounded"
+                style={{ backgroundColor: TYPE_COLORS.deadline }}
+              />
+              <span className="text-sm text-muted-foreground">Deadline</span>
             </div>
+
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded" style={{ backgroundColor: TYPE_COLORS.review }}></div>
-              <span className="text-sm text-gray-600">Review</span>
+              <div
+                className="w-4 h-4 rounded"
+                style={{ backgroundColor: TYPE_COLORS.review }}
+              />
+              <span className="text-sm text-muted-foreground">Review</span>
             </div>
+
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded" style={{ backgroundColor: TYPE_COLORS.planning }}></div>
-              <span className="text-sm text-gray-600">Planning</span>
+              <div
+                className="w-4 h-4 rounded"
+                style={{ backgroundColor: TYPE_COLORS.planning }}
+              />
+              <span className="text-sm text-muted-foreground">Planning</span>
             </div>
+
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded" style={{ backgroundColor: TYPE_COLORS.presentation }}></div>
-              <span className="text-sm text-gray-600">Presentation</span>
+              <div
+                className="w-4 h-4 rounded"
+                style={{ backgroundColor: TYPE_COLORS.presentation }}
+              />
+              <span className="text-sm text-muted-foreground">Presentation</span>
             </div>
           </div>
         </CardContent>

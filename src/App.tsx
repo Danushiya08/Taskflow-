@@ -38,6 +38,26 @@ type Page =
   | "tasks"
   | "settings";
 
+const applyTheme = (theme: string) => {
+  const root = window.document.documentElement;
+
+  if (theme === "dark") {
+    root.classList.add("dark");
+    localStorage.setItem("theme", "dark");
+    return;
+  }
+
+  if (theme === "light") {
+    root.classList.remove("dark");
+    localStorage.setItem("theme", "light");
+    return;
+  }
+
+  const systemDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  root.classList.toggle("dark", systemDark);
+  localStorage.setItem("theme", "auto");
+};
+
 export default function App() {
   const [user, setUser] = useState<any>(null);
   const [page, setPage] = useState<Page>("dashboard");
@@ -85,9 +105,6 @@ export default function App() {
         "tasks",
         "settings",
       ],
-
-      // ✅ FIXED: allow clients to access Reports page
-      // CHANGED LINE: added "reports"
       client: ["dashboard", "projects", "tasks", "documents", "reports", "calendar", "settings"],
     }),
     []
@@ -111,7 +128,11 @@ export default function App() {
     setPage("dashboard");
   };
 
-  // verify token on refresh using /api/me
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("theme") || "light";
+    applyTheme(savedTheme);
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem("token");
 
@@ -123,13 +144,23 @@ export default function App() {
 
     const loadMe = async () => {
       try {
-        const res = await api.get("/me"); // ✅ baseURL="/api" => /api/me
-
+        const res = await api.get("/me");
         const me = (res.data as any)?.user ?? res.data;
-        if (!me || !me.role) throw new Error("Invalid /api/me response");
+
+        if (!me || !me.role) {
+          throw new Error("Invalid /api/me response");
+        }
 
         setUser(me);
         localStorage.setItem("user", JSON.stringify(me));
+
+        try {
+          const settingsRes = await api.get("/settings/me");
+          const savedTheme = settingsRes?.data?.preferences?.theme || "light";
+          applyTheme(savedTheme);
+        } catch {
+          // ignore settings load failure here
+        }
       } catch (e) {
         handleLogout();
       } finally {
@@ -141,16 +172,17 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // keep page valid after login/refresh
   useEffect(() => {
-    if (user && role && !isAllowed(page)) setPage("dashboard");
+    if (user && role && !isAllowed(page)) {
+      setPage("dashboard");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, role]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-700 text-lg">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
+        <div className="text-lg">Loading...</div>
       </div>
     );
   }
@@ -159,18 +191,26 @@ export default function App() {
     <>
       {!user ? (
         <LoginPage
-          onLogin={(u) => {
+          onLogin={async (u) => {
             setUser(u);
+
+            try {
+              const settingsRes = await api.get("/settings/me");
+              const savedTheme = settingsRes?.data?.preferences?.theme || "light";
+              applyTheme(savedTheme);
+            } catch {
+              applyTheme(localStorage.getItem("theme") || "light");
+            }
           }}
         />
       ) : (
-        <div className="flex h-screen bg-gray-50">
+        <div className="flex h-screen bg-background text-foreground">
           <Sidebar currentPage={page} onNavigate={handleNavigate} currentUser={user} />
 
           <div className="flex flex-col flex-1 overflow-hidden">
             <Header currentUser={user} onLogout={handleLogout} />
 
-            <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto bg-background text-foreground">
               {page === "dashboard" && role === "admin" && <Dashboard />}
               {page === "dashboard" && role === "project-manager" && <ProjectManagerDashboard />}
               {page === "dashboard" && role === "team-member" && <TeamMemberDashboard />}

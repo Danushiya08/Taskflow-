@@ -44,6 +44,7 @@ type SortBy = "recent" | "name" | "role" | "tasks";
 
 type TaskStatus = "todo" | "in-progress" | "done";
 type TaskPriority = "low" | "medium" | "high" | "critical";
+type DateFormatPreference = "mdy" | "dmy" | "ymd";
 
 const NONE = "__none__";
 
@@ -82,7 +83,7 @@ const roleBadgeClass = (r: string) => {
     case "client":
       return "bg-orange-500 text-white border-orange-500";
     default:
-      return "bg-gray-200 text-gray-900 border-gray-200";
+      return "bg-muted text-foreground border-border";
   }
 };
 
@@ -102,9 +103,7 @@ const getPriorityVariant = (priority: string) => {
   }
 };
 
-// ✅ NEW: workload risk helpers
 const loadPercentFromTasks = (tasksCount: number) => {
-  // You can tune this baseline (40 tasks = 100%)
   const pct = Math.round((tasksCount / 40) * 100);
   return Math.max(0, Math.min(100, pct));
 };
@@ -116,37 +115,45 @@ const loadRiskFromTasks = (tasksCount: number) => {
   return { label: "Light", variant: "outline" as const };
 };
 
+const formatDateByPreference = (value: string | null | undefined, dateFormat: DateFormatPreference) => {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+
+  if (dateFormat === "dmy") return `${day}/${month}/${year}`;
+  if (dateFormat === "ymd") return `${year}-${month}-${day}`;
+  return `${month}/${day}/${year}`;
+};
+
 export function TeamPage() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [dateFormat, setDateFormat] = useState<DateFormatPreference>("mdy");
 
-  // Filters + sorting
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortBy, setSortBy] = useState<SortBy>("recent");
 
-  // pagination
   const [visibleCount, setVisibleCount] = useState(9);
 
-  // menu
   const [openMenuFor, setOpenMenuFor] = useState<string | null>(null);
 
-  // Admin role edit dialog
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<any | null>(null);
   const [editRole, setEditRole] = useState<Exclude<Role, "client">>("team-member");
   const [saving, setSaving] = useState(false);
 
-  // Confirm disable/enable
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmUser, setConfirmUser] = useState<any | null>(null);
 
-  // Confirm delete
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteUser, setDeleteUser] = useState<any | null>(null);
 
-  // Add member dialog (Admin + PM)
   const [addOpen, setAddOpen] = useState(false);
   const [addName, setAddName] = useState("");
   const [addEmail, setAddEmail] = useState("");
@@ -154,7 +161,6 @@ export function TeamPage() {
   const [addRole, setAddRole] = useState<Exclude<Role, "client">>("team-member");
   const [adding, setAdding] = useState(false);
 
-  // View + Details dialogs
   const [viewOpen, setViewOpen] = useState(false);
   const [viewUser, setViewUser] = useState<any | null>(null);
 
@@ -162,14 +168,12 @@ export function TeamPage() {
   const [detailsUser, setDetailsUser] = useState<any | null>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
 
-  // details payload
   const [detailsPayload, setDetailsPayload] = useState<{
     user?: any;
     projects?: any[];
     tasks?: any[];
   }>({});
 
-  // Assign Task dialog (Admin/PM only)
   const [assignOpen, setAssignOpen] = useState(false);
   const [assignUser, setAssignUser] = useState<any | null>(null);
   const [projects, setProjects] = useState<any[]>([]);
@@ -194,7 +198,6 @@ export function TeamPage() {
 
   const myRole = normalizeRole(currentUser?.role) as Role;
 
-  // Team CAN view page. Client cannot.
   const canViewTeam = myRole === "admin" || myRole === "project-manager" || myRole === "team-member";
   const canViewStats = myRole === "admin" || myRole === "project-manager";
   const canChangeRole = myRole === "admin";
@@ -202,6 +205,16 @@ export function TeamPage() {
   const canAddMember = myRole === "admin" || myRole === "project-manager";
   const canDelete = myRole === "admin" || myRole === "project-manager";
   const canAssignTask = myRole === "admin" || myRole === "project-manager";
+
+  const loadPreferences = async () => {
+    try {
+      const res = await api.get("/settings/me");
+      const prefs = res?.data?.preferences || {};
+      setDateFormat((prefs.dateFormat as DateFormatPreference) || "mdy");
+    } catch {
+      setDateFormat("mdy");
+    }
+  };
 
   const loadTeam = async () => {
     setLoading(true);
@@ -236,11 +249,15 @@ export function TeamPage() {
       setLoading(false);
       return;
     }
-    loadTeam();
+
+    const init = async () => {
+      await Promise.all([loadTeam(), loadPreferences()]);
+    };
+
+    init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // stats (admin/pm only)
   const stats = useMemo(() => {
     const total = users.length;
     const active = users.filter((u) => (typeof u.isActive === "boolean" ? u.isActive : true)).length;
@@ -383,13 +400,11 @@ export function TeamPage() {
     }
   };
 
-  // View
   const openView = (u: any) => {
     setViewUser(u);
     setViewOpen(true);
   };
 
-  // Details (Admin/PM loads workload data)
   const openDetails = async (u: any) => {
     setDetailsUser(u);
     setDetailsPayload({});
@@ -412,7 +427,6 @@ export function TeamPage() {
     }
   };
 
-  // Assign task
   const resetAssignForm = () => {
     setAssignProjectId(NONE);
     setAssignTitle("");
@@ -478,16 +492,15 @@ export function TeamPage() {
 
   if (!canViewTeam) {
     return (
-      <div className="p-6 space-y-2">
-        <h1 className="text-3xl text-gray-900">Team & Roles</h1>
-        <p className="text-gray-600">This page is not available for your role.</p>
+      <div className="p-6 space-y-2 bg-background text-foreground">
+        <h1 className="text-3xl font-semibold">Team & Roles</h1>
+        <p className="text-muted-foreground">This page is not available for your role.</p>
       </div>
     );
   }
 
   const overloadedDanger = stats.overloaded > 0;
 
-  // ✅ NEW: computed details summaries
   const detailsTasks = Array.isArray(detailsPayload.tasks) ? detailsPayload.tasks : [];
   const detailsProjects = Array.isArray(detailsPayload.projects) ? detailsPayload.projects : [];
 
@@ -505,12 +518,11 @@ export function TeamPage() {
   }, [detailsOpen, detailsTasks.length]);
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-6 bg-background text-foreground">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl text-gray-900 mb-2">Team & Roles</h1>
-          <p className="text-gray-600">Manage users, roles, and workload across projects</p>
+          <h1 className="text-3xl font-semibold mb-2">Team & Roles</h1>
+          <p className="text-muted-foreground">Manage users, roles, and workload across projects</p>
         </div>
 
         {canAddMember && (
@@ -528,65 +540,63 @@ export function TeamPage() {
         )}
       </div>
 
-      {/* Stats cards (Admin/PM only) */}
       {canViewStats && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
+          <Card className="border-border bg-card text-card-foreground">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">Total Members</p>
-                  <p className="text-2xl text-gray-900 mt-1">{stats.total}</p>
+                  <p className="text-sm text-muted-foreground">Total Members</p>
+                  <p className="text-2xl font-semibold mt-1">{stats.total}</p>
                 </div>
                 <CheckCircle2 className="w-8 h-8 text-blue-600" />
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-border bg-card text-card-foreground">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">Active Now</p>
-                  <p className="text-2xl text-gray-900 mt-1">{stats.active}</p>
+                  <p className="text-sm text-muted-foreground">Active Now</p>
+                  <p className="text-2xl font-semibold mt-1">{stats.active}</p>
                 </div>
                 <TrendingUp className="w-8 h-8 text-green-600" />
               </div>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border-border bg-card text-card-foreground">
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">Avg. Load</p>
-                  <p className="text-2xl text-gray-900 mt-1">{stats.avgLoad}%</p>
+                  <p className="text-sm text-muted-foreground">Avg. Load</p>
+                  <p className="text-2xl font-semibold mt-1">{stats.avgLoad}%</p>
                 </div>
                 <Clock className="w-8 h-8 text-yellow-600" />
               </div>
             </CardContent>
           </Card>
 
-          <Card className={overloadedDanger ? "border border-red-200" : ""}>
+          <Card className={`border-border bg-card text-card-foreground ${overloadedDanger ? "border-red-300 dark:border-red-900" : ""}`}>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">Overloaded</p>
-                  <p className={`text-2xl mt-1 ${overloadedDanger ? "text-red-600" : "text-gray-900"}`}>
+                  <p className="text-sm text-muted-foreground">Overloaded</p>
+                  <p className={`text-2xl font-semibold mt-1 ${overloadedDanger ? "text-red-600" : "text-card-foreground"}`}>
                     {stats.overloaded}
                   </p>
                 </div>
-                <AlertTriangle className={`w-8 h-8 ${overloadedDanger ? "text-red-600" : "text-gray-400"}`} />
+                <AlertTriangle className={`w-8 h-8 ${overloadedDanger ? "text-red-600" : "text-muted-foreground"}`} />
               </div>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* Search + Filters + Sort */}
       <div className="flex gap-3 items-center flex-wrap">
         <div className="relative flex-1 min-w-[260px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             type="search"
             placeholder="Search team members..."
@@ -632,13 +642,12 @@ export function TeamPage() {
         </Select>
       </div>
 
-      {/* Cards */}
       {loading ? (
-        <div className="text-sm text-gray-500">Loading team...</div>
+        <div className="text-sm text-muted-foreground">Loading team...</div>
       ) : pagedUsers.length === 0 ? (
-        <div className="text-sm text-gray-500">
+        <div className="text-sm text-muted-foreground">
           No members found.
-          <div className="text-xs text-gray-400 mt-1">Try changing filters or search keywords.</div>
+          <div className="text-xs text-muted-foreground mt-1">Try changing filters or search keywords.</div>
         </div>
       ) : (
         <>
@@ -658,7 +667,7 @@ export function TeamPage() {
               const topAssignedBy = canViewStats ? u.topAssignedBy : null;
 
               return (
-                <Card key={u._id} className={`hover:shadow-lg transition-shadow ${disabledStyle}`}>
+                <Card key={u._id} className={`border-border bg-card text-card-foreground hover:shadow-lg transition-shadow ${disabledStyle}`}>
                   <CardHeader>
                     <div className="flex items-start gap-4">
                       <img
@@ -670,9 +679,9 @@ export function TeamPage() {
                       <div className="flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <h3 className="text-lg text-gray-900 leading-tight">{u.name || "—"}</h3>
+                            <h3 className="text-lg font-medium text-card-foreground leading-tight">{u.name || "—"}</h3>
 
-                            <div className="flex items-center gap-2 mt-2">
+                            <div className="flex items-center gap-2 mt-2 flex-wrap">
                               <span className={`text-xs px-2 py-1 rounded-md border ${roleBadgeClass(r)}`}>
                                 {roleLabel(r)}
                               </span>
@@ -682,10 +691,9 @@ export function TeamPage() {
                               </Badge>
                             </div>
 
-                            <div className="text-xs text-gray-500 mt-2">{u.lastActiveLabel || "Offline"}</div>
+                            <div className="text-xs text-muted-foreground mt-2">{u.lastActiveLabel || "Offline"}</div>
                           </div>
 
-                          {/* menu */}
                           <div className="relative">
                             <Button
                               type="button"
@@ -700,12 +708,12 @@ export function TeamPage() {
 
                             {openMenuFor === u._id && (
                               <div
-                                className="absolute right-0 mt-2 w-52 bg-white border rounded-md shadow-md z-10"
+                                className="absolute right-0 mt-2 w-52 bg-card border border-border rounded-md shadow-md z-10"
                                 onMouseLeave={() => setOpenMenuFor(null)}
                               >
                                 {canChangeRole ? (
                                   <button
-                                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50"
+                                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted"
                                     onClick={() => {
                                       setOpenMenuFor(null);
                                       openEdit(u);
@@ -714,12 +722,12 @@ export function TeamPage() {
                                     Edit role
                                   </button>
                                 ) : (
-                                  <div className="px-3 py-2 text-sm text-gray-400">No role changes</div>
+                                  <div className="px-3 py-2 text-sm text-muted-foreground">No role changes</div>
                                 )}
 
                                 {canToggleUser ? (
                                   <button
-                                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+                                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
                                     disabled={pmCannotDisableAdmin}
                                     title={pmCannotDisableAdmin ? "PM cannot disable Admin/PM" : ""}
                                     onClick={() => {
@@ -733,7 +741,7 @@ export function TeamPage() {
 
                                 {canDelete ? (
                                   <button
-                                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 disabled:opacity-50"
+                                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted disabled:opacity-50"
                                     disabled={adminCannotDeleteAdmin || pmCannotDelete}
                                     title={
                                       adminCannotDeleteAdmin
@@ -758,8 +766,7 @@ export function TeamPage() {
                           </div>
                         </div>
 
-                        {/* quick actions */}
-                        <div className="flex gap-2 mt-4">
+                        <div className="flex gap-2 mt-4 flex-wrap">
                           <Button variant="outline" size="sm" disabled={!active} onClick={() => openView(u)}>
                             View
                           </Button>
@@ -783,19 +790,18 @@ export function TeamPage() {
                   </CardHeader>
 
                   <CardContent className="space-y-4">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Mail className="w-4 h-4" />
                       <span className="truncate">{u.email || "—"}</span>
                     </div>
 
-                    {/* Admin/PM only sections */}
-                    <div className="grid grid-cols-2 gap-3 pt-4 border-t border-gray-100">
-                      <div className="rounded-md border p-3" title="Tasks assigned to this user">
-                        <p className="text-xs text-gray-500">📌 Tasks</p>
-                        <p className="text-lg text-gray-900">{tasksCount === null ? "—" : tasksCount}</p>
+                    <div className="grid grid-cols-2 gap-3 pt-4 border-t border-border">
+                      <div className="rounded-md border border-border p-3">
+                        <p className="text-xs text-muted-foreground">📌 Tasks</p>
+                        <p className="text-lg font-medium text-card-foreground">{tasksCount === null ? "—" : tasksCount}</p>
 
                         {Array.isArray(u.tasks) && u.tasks.length > 0 && canViewStats ? (
-                          <ul className="text-xs text-gray-600 mt-2 space-y-1">
+                          <ul className="text-xs text-muted-foreground mt-2 space-y-1">
                             {u.tasks.map((t: any) => (
                               <li key={t._id} className="truncate" title={t.title}>
                                 • {t.title}
@@ -803,23 +809,23 @@ export function TeamPage() {
                             ))}
                           </ul>
                         ) : tasksCount === 0 && tasksCount !== null ? (
-                          <p className="text-xs text-gray-400 mt-1">No tasks assigned yet</p>
+                          <p className="text-xs text-muted-foreground mt-1">No tasks assigned yet</p>
                         ) : null}
 
                         {topAssignedBy && topAssignedBy?.name ? (
-                          <p className="text-xs text-gray-500 mt-2">
-                            Mostly assigned by: <span className="text-gray-700">{topAssignedBy.name}</span> (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            Mostly assigned by: <span className="text-card-foreground">{topAssignedBy.name}</span> (
                             {topAssignedBy.count})
                           </p>
                         ) : null}
                       </div>
 
-                      <div className="rounded-md border p-3" title="Projects this user is part of">
-                        <p className="text-xs text-gray-500">📁 Projects</p>
-                        <p className="text-lg text-gray-900">{projectsCount === null ? "—" : projectsCount}</p>
+                      <div className="rounded-md border border-border p-3">
+                        <p className="text-xs text-muted-foreground">📁 Projects</p>
+                        <p className="text-lg font-medium text-card-foreground">{projectsCount === null ? "—" : projectsCount}</p>
 
                         {Array.isArray(u.projects) && u.projects.length > 0 && canViewStats ? (
-                          <ul className="text-xs text-gray-600 mt-2 space-y-1">
+                          <ul className="text-xs text-muted-foreground mt-2 space-y-1">
                             {u.projects.map((p: any) => (
                               <li key={p._id} className="truncate" title={p.name}>
                                 • {p.name}
@@ -827,7 +833,7 @@ export function TeamPage() {
                             ))}
                           </ul>
                         ) : projectsCount === 0 && projectsCount !== null ? (
-                          <p className="text-xs text-gray-400 mt-1">No projects yet</p>
+                          <p className="text-xs text-muted-foreground mt-1">No projects yet</p>
                         ) : null}
                       </div>
                     </div>
@@ -837,7 +843,6 @@ export function TeamPage() {
             })}
           </div>
 
-          {/* Load more */}
           {visibleCount < filteredSortedUsers.length && (
             <div className="flex justify-center pt-2">
               <Button variant="outline" onClick={() => setVisibleCount((c) => c + 9)}>
@@ -848,7 +853,6 @@ export function TeamPage() {
         </>
       )}
 
-      {/* View dialog */}
       <Dialog
         open={viewOpen}
         onOpenChange={(open) => {
@@ -856,7 +860,7 @@ export function TeamPage() {
           if (!open) setViewUser(null);
         }}
       >
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg border-border bg-card text-card-foreground">
           <DialogHeaderUI>
             <DialogTitleUI>User Profile</DialogTitleUI>
             <DialogDescription>Basic information</DialogDescription>
@@ -869,10 +873,10 @@ export function TeamPage() {
               className="w-16 h-16 rounded-full"
             />
             <div className="flex-1">
-              <div className="text-lg text-gray-900 font-medium">{viewUser?.name || "—"}</div>
-              <div className="text-sm text-gray-600">{viewUser?.email || "—"}</div>
+              <div className="text-lg font-medium text-card-foreground">{viewUser?.name || "—"}</div>
+              <div className="text-sm text-muted-foreground">{viewUser?.email || "—"}</div>
 
-              <div className="flex items-center gap-2 mt-3">
+              <div className="flex items-center gap-2 mt-3 flex-wrap">
                 <span
                   className={`text-xs px-2 py-1 rounded-md border ${roleBadgeClass(String(normalizeRole(viewUser?.role)))}`}
                 >
@@ -883,20 +887,20 @@ export function TeamPage() {
                 </Badge>
               </div>
 
-              <div className="text-xs text-gray-500 mt-2">{viewUser?.lastActiveLabel || "Offline"}</div>
+              <div className="text-xs text-muted-foreground mt-2">{viewUser?.lastActiveLabel || "Offline"}</div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 pt-4 border-t">
-            <div className="rounded-md border p-3">
-              <div className="text-xs text-gray-500">Projects (count)</div>
-              <div className="text-xl text-gray-900">
+          <div className="grid grid-cols-2 gap-3 pt-4 border-t border-border">
+            <div className="rounded-md border border-border p-3">
+              <div className="text-xs text-muted-foreground">Projects (count)</div>
+              <div className="text-xl font-medium text-card-foreground">
                 {typeof viewUser?.projectsCount === "number" ? viewUser.projectsCount : "—"}
               </div>
             </div>
-            <div className="rounded-md border p-3">
-              <div className="text-xs text-gray-500">Tasks (count)</div>
-              <div className="text-xl text-gray-900">
+            <div className="rounded-md border border-border p-3">
+              <div className="text-xs text-muted-foreground">Tasks (count)</div>
+              <div className="text-xl font-medium text-card-foreground">
                 {typeof viewUser?.tasksCount === "number" ? viewUser.tasksCount : "—"}
               </div>
             </div>
@@ -910,7 +914,6 @@ export function TeamPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ✅ Details dialog (UPGRADED) */}
       <Dialog
         open={detailsOpen}
         onOpenChange={(open) => {
@@ -922,7 +925,7 @@ export function TeamPage() {
           }
         }}
       >
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl border-border bg-card text-card-foreground">
           <DialogHeaderUI>
             <DialogTitleUI>User Details</DialogTitleUI>
             <DialogDescription>
@@ -931,29 +934,28 @@ export function TeamPage() {
           </DialogHeaderUI>
 
           {!canViewStats ? (
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-muted-foreground">
               Your role can view only basic information. Ask Admin/PM for workload details.
             </div>
           ) : detailsLoading ? (
-            <div className="text-sm text-gray-500">Loading details...</div>
+            <div className="text-sm text-muted-foreground">Loading details...</div>
           ) : (
             <>
-              {/* ✅ Summary strip */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <div className="rounded-md border p-3">
-                  <div className="text-xs text-gray-500">Projects</div>
-                  <div className="text-2xl text-gray-900 mt-1">{detailsProjects.length}</div>
+                <div className="rounded-md border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Projects</div>
+                  <div className="text-2xl font-semibold text-card-foreground mt-1">{detailsProjects.length}</div>
                 </div>
 
-                <div className="rounded-md border p-3">
-                  <div className="text-xs text-gray-500">Total Tasks</div>
-                  <div className="text-2xl text-gray-900 mt-1">{detailsCounts.total}</div>
+                <div className="rounded-md border border-border p-3">
+                  <div className="text-xs text-muted-foreground">Total Tasks</div>
+                  <div className="text-2xl font-semibold text-card-foreground mt-1">{detailsCounts.total}</div>
                 </div>
 
-                <div className="rounded-md border p-3">
-                  <div className="text-xs text-gray-500 mb-2">Workload</div>
+                <div className="rounded-md border border-border p-3">
+                  <div className="text-xs text-muted-foreground mb-2">Workload</div>
                   <div className="flex items-center justify-between gap-2">
-                    <div className="text-lg text-gray-900">{detailsCounts.loadPct}%</div>
+                    <div className="text-lg font-medium text-card-foreground">{detailsCounts.loadPct}%</div>
                     <Badge variant={detailsCounts.risk.variant}>{detailsCounts.risk.label}</Badge>
                   </div>
                   <div className="mt-2">
@@ -961,9 +963,9 @@ export function TeamPage() {
                   </div>
                 </div>
 
-                <div className="rounded-md border p-3">
-                  <div className="text-xs text-gray-500 mb-2">Task Status</div>
-                  <div className="text-sm text-gray-700 space-y-1">
+                <div className="rounded-md border border-border p-3">
+                  <div className="text-xs text-muted-foreground mb-2">Task Status</div>
+                  <div className="text-sm text-muted-foreground space-y-1">
                     <div className="flex justify-between">
                       <span>To Do</span>
                       <span>{detailsCounts.byStatus.todo}</span>
@@ -980,12 +982,11 @@ export function TeamPage() {
                 </div>
               </div>
 
-              {/* Lists */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <div className="rounded-md border p-3">
-                  <div className="text-xs text-gray-500 mb-2">Projects</div>
+                <div className="rounded-md border border-border p-3">
+                  <div className="text-xs text-muted-foreground mb-2">Projects</div>
                   {detailsProjects.length > 0 ? (
-                    <ul className="text-sm text-gray-700 space-y-1 max-h-64 overflow-auto">
+                    <ul className="text-sm text-muted-foreground space-y-1 max-h-64 overflow-auto">
                       {detailsProjects.map((p: any) => (
                         <li key={p._id} className="truncate" title={p.name}>
                           • {p.name}
@@ -993,24 +994,24 @@ export function TeamPage() {
                       ))}
                     </ul>
                   ) : (
-                    <div className="text-sm text-gray-500">No projects</div>
+                    <div className="text-sm text-muted-foreground">No projects</div>
                   )}
                 </div>
 
-                <div className="rounded-md border p-3">
-                  <div className="text-xs text-gray-500 mb-2">Assigned Tasks</div>
+                <div className="rounded-md border border-border p-3">
+                  <div className="text-xs text-muted-foreground mb-2">Assigned Tasks</div>
                   {detailsTasks.length > 0 ? (
-                    <ul className="text-sm text-gray-700 space-y-2 max-h-64 overflow-auto">
+                    <ul className="text-sm text-muted-foreground space-y-2 max-h-64 overflow-auto">
                       {detailsTasks.map((t: any) => (
-                        <li key={t._id} className="border rounded-md p-2">
+                        <li key={t._id} className="border border-border rounded-md p-2">
                           <div className="flex items-center justify-between gap-2">
-                            <div className="font-medium truncate" title={t.title}>
+                            <div className="font-medium truncate text-card-foreground" title={t.title}>
                               {t.title}
                             </div>
                             <Badge variant={t.status === "done" ? "default" : "outline"}>{t.status}</Badge>
                           </div>
 
-                          <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                          <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
                             <Flag className="w-3 h-3" />
                             <Badge variant={getPriorityVariant(t.priority)}>{t.priority}</Badge>
 
@@ -1021,16 +1022,16 @@ export function TeamPage() {
                           </div>
 
                           {t?.dueDate ? (
-                            <div className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                            <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
-                              {new Date(t.dueDate).toLocaleDateString()}
+                              {formatDateByPreference(t.dueDate, dateFormat)}
                             </div>
                           ) : null}
                         </li>
                       ))}
                     </ul>
                   ) : (
-                    <div className="text-sm text-gray-500">No tasks</div>
+                    <div className="text-sm text-muted-foreground">No tasks</div>
                   )}
                 </div>
               </div>
@@ -1045,7 +1046,6 @@ export function TeamPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Assign Task dialog */}
       <Dialog
         open={assignOpen}
         onOpenChange={(open) => {
@@ -1056,7 +1056,7 @@ export function TeamPage() {
           }
         }}
       >
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl border-border bg-card text-card-foreground">
           <DialogHeaderUI>
             <DialogTitleUI>Assign Task</DialogTitleUI>
             <DialogDescription>
@@ -1065,7 +1065,7 @@ export function TeamPage() {
           </DialogHeaderUI>
 
           {!canAssignTask ? (
-            <div className="text-sm text-gray-600">Only Admin / Project Manager can assign tasks.</div>
+            <div className="text-sm text-muted-foreground">Only Admin / Project Manager can assign tasks.</div>
           ) : (
             <div className="space-y-4 py-2">
               <div className="space-y-2">
@@ -1144,7 +1144,6 @@ export function TeamPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Member dialog */}
       <Dialog
         open={addOpen}
         onOpenChange={(open) => {
@@ -1152,7 +1151,7 @@ export function TeamPage() {
           if (!open) resetAdd();
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md border-border bg-card text-card-foreground">
           <DialogHeaderUI>
             <DialogTitleUI>Add Member</DialogTitleUI>
             <DialogDescription>
@@ -1193,8 +1192,8 @@ export function TeamPage() {
                 </Select>
               </div>
             ) : (
-              <div className="text-sm text-gray-600">
-                Role: <span className="font-medium">Team Member</span>
+              <div className="text-sm text-muted-foreground">
+                Role: <span className="font-medium text-card-foreground">Team Member</span>
               </div>
             )}
           </div>
@@ -1210,7 +1209,6 @@ export function TeamPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit role dialog */}
       <Dialog
         open={isEditOpen}
         onOpenChange={(open) => {
@@ -1218,16 +1216,16 @@ export function TeamPage() {
           if (!open) setEditingUser(null);
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md border-border bg-card text-card-foreground">
           <DialogHeaderUI>
             <DialogTitleUI>Edit User</DialogTitleUI>
             <DialogDescription>Change role (Admin only)</DialogDescription>
           </DialogHeaderUI>
 
           <div className="space-y-4 py-2">
-            <div className="text-sm text-gray-700">
-              <div className="font-medium text-gray-900">{editingUser?.name}</div>
-              <div className="text-xs text-gray-500">{editingUser?.email}</div>
+            <div className="text-sm text-muted-foreground">
+              <div className="font-medium text-card-foreground">{editingUser?.name}</div>
+              <div className="text-xs text-muted-foreground">{editingUser?.email}</div>
             </div>
 
             <div className="space-y-2">
@@ -1256,7 +1254,6 @@ export function TeamPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirm enable/disable */}
       <Dialog
         open={confirmOpen}
         onOpenChange={(open) => {
@@ -1264,20 +1261,22 @@ export function TeamPage() {
           if (!open) setConfirmUser(null);
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md border-border bg-card text-card-foreground">
           <DialogHeaderUI>
             <DialogTitleUI>Confirm action</DialogTitleUI>
             <DialogDescription>
               {(() => {
                 const active = typeof confirmUser?.isActive === "boolean" ? confirmUser.isActive : true;
-                return active ? "This will disable the user and prevent login." : "This will enable the user and allow login.";
+                return active
+                  ? "This will disable the user and prevent login."
+                  : "This will enable the user and allow login.";
               })()}
             </DialogDescription>
           </DialogHeaderUI>
 
-          <div className="text-sm text-gray-700">
-            <div className="font-medium text-gray-900">{confirmUser?.name}</div>
-            <div className="text-xs text-gray-500">{confirmUser?.email}</div>
+          <div className="text-sm text-muted-foreground">
+            <div className="font-medium text-card-foreground">{confirmUser?.name}</div>
+            <div className="text-xs text-muted-foreground">{confirmUser?.email}</div>
           </div>
 
           <DialogFooter>
@@ -1301,7 +1300,6 @@ export function TeamPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Confirm delete */}
       <Dialog
         open={deleteOpen}
         onOpenChange={(open) => {
@@ -1309,15 +1307,15 @@ export function TeamPage() {
           if (!open) setDeleteUser(null);
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md border-border bg-card text-card-foreground">
           <DialogHeaderUI>
             <DialogTitleUI>Delete user?</DialogTitleUI>
             <DialogDescription>This permanently removes the user account.</DialogDescription>
           </DialogHeaderUI>
 
-          <div className="text-sm text-gray-700">
-            <div className="font-medium text-gray-900">{deleteUser?.name}</div>
-            <div className="text-xs text-gray-500">{deleteUser?.email}</div>
+          <div className="text-sm text-muted-foreground">
+            <div className="font-medium text-card-foreground">{deleteUser?.name}</div>
+            <div className="text-xs text-muted-foreground">{deleteUser?.email}</div>
           </div>
 
           <DialogFooter>

@@ -1,4 +1,4 @@
-import{ useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,8 @@ import {
   BarChart,
   Bar,
 } from "recharts";
+import { formatCurrency } from "@/lib/currency";
+import { useUserPreferences } from "@/hooks/useUserPreferences";
 
 function useAuthFromStorage() {
   try {
@@ -50,8 +52,18 @@ type DashboardResponse = {
 
 const TIME_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#94a3b8"];
 
+const chartTooltipStyle = {
+  backgroundColor: "hsl(var(--card))",
+  border: "1px solid hsl(var(--border))",
+  color: "hsl(var(--card-foreground))",
+  borderRadius: "8px",
+};
+
 export function ReportsPage() {
   const { user } = useAuthFromStorage();
+  const { preferences } = useUserPreferences();
+  const compactMode = preferences.compactMode;
+
   const role = String(user?.role || "").toLowerCase();
 
   const [range, setRange] = useState("last-30-days");
@@ -80,8 +92,7 @@ export function ReportsPage() {
 
   useEffect(() => {
     if (canSeeReports) fetchDashboard(range);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range]);
+  }, [range, canSeeReports]);
 
   const timeDistribution = useMemo(() => {
     const arr = data?.charts?.timeDistribution || [];
@@ -114,15 +125,30 @@ export function ReportsPage() {
     }
   };
 
+  const pagePadding = compactMode ? "p-4" : "p-6";
+  const sectionSpacing = compactMode ? "space-y-4" : "space-y-6";
+  const gridGap = compactMode ? "gap-3" : "gap-4";
+  const chartGridGap = compactMode ? "gap-4" : "gap-6";
+  const cardHeaderPadding = compactMode ? "pb-2" : "pb-4";
+  const cardTopPadding = compactMode ? "pt-4" : "pt-6";
+  const titleClass = compactMode ? "text-2xl font-semibold mb-1" : "text-3xl font-semibold mb-2";
+  const cardTitleClass = compactMode ? "text-base" : "text-lg";
+  const chartHeight = compactMode ? 240 : 300;
+  const pieChartHeight = compactMode ? 240 : 300;
+  const pieChartWidth = compactMode ? "100%" : "40%";
+  const listSpacing = compactMode ? "space-y-2" : "space-y-3";
+  const budgetSpacing = compactMode ? "space-y-4" : "space-y-6";
+  const progressHeight = compactMode ? "h-2" : "h-3";
+
   if (!canSeeReports) {
     return (
-      <div className="p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Reports & Analytics</CardTitle>
+      <div className={`${pagePadding} bg-background text-foreground`}>
+        <Card className="border-border bg-card text-card-foreground">
+          <CardHeader className={cardHeaderPadding}>
+            <CardTitle className={cardTitleClass}>Reports & Analytics</CardTitle>
             <CardDescription>Access restricted</CardDescription>
           </CardHeader>
-          <CardContent className="text-gray-700">
+          <CardContent className={`text-muted-foreground ${cardTopPadding}`}>
             Team Members don’t have access to the Reports & Analytics dashboard.
           </CardContent>
         </Card>
@@ -138,19 +164,21 @@ export function ReportsPage() {
     (data?.charts?.budgetByProject?.length || 0) > 0;
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl text-gray-900 mb-2">Reports & Analytics</h1>
-          <p className="text-gray-600">
-            {isClient ? "High-level visibility into your project progress" : "Comprehensive insights into project performance and team productivity"}
+          <h1 className={titleClass}>Reports & Analytics</h1>
+          <p className="text-muted-foreground">
+            {isClient
+              ? "High-level visibility into your project progress"
+              : "Comprehensive insights into project performance and team productivity"}
           </p>
-          {data?.scope ? <p className="text-xs text-gray-500 mt-1">Scope: {data.scope}</p> : null}
+          {data?.scope ? <p className="text-xs text-muted-foreground mt-1">Scope: {data.scope}</p> : null}
         </div>
 
         <div className="flex items-center gap-3">
           <Select value={range} onValueChange={setRange}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger className={compactMode ? "w-44 h-9" : "w-48"}>
               <Calendar className="w-4 h-4 mr-2" />
               <SelectValue />
             </SelectTrigger>
@@ -162,7 +190,7 @@ export function ReportsPage() {
             </SelectContent>
           </Select>
 
-          <Button onClick={exportPDF} disabled={loading || exporting}>
+          <Button onClick={exportPDF} disabled={loading || exporting} className={compactMode ? "h-9 px-3" : ""}>
             <Download className="w-4 h-4 mr-2" />
             {exporting ? "Exporting..." : "Export Report"}
           </Button>
@@ -170,122 +198,127 @@ export function ReportsPage() {
       </div>
 
       {err ? (
-        <Card>
-          <CardContent className="pt-6 text-red-600">{err}</CardContent>
+        <Card className="border-border bg-card text-card-foreground">
+          <CardContent className={`${cardTopPadding} text-destructive`}>{err}</CardContent>
         </Card>
       ) : null}
 
       {loading ? (
-        <Card>
-          <CardContent className="pt-6 text-gray-600">Loading dashboard...</CardContent>
+        <Card className="border-border bg-card text-card-foreground">
+          <CardContent className={`${cardTopPadding} text-muted-foreground`}>Loading dashboard...</CardContent>
         </Card>
       ) : !data ? (
-        <Card>
-          <CardContent className="pt-6 text-gray-600">No data available.</CardContent>
+        <Card className="border-border bg-card text-card-foreground">
+          <CardContent className={`${cardTopPadding} text-muted-foreground`}>No data available.</CardContent>
         </Card>
       ) : !hasAnyChartData ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>No data available</CardTitle>
+        <Card className="border-border bg-card text-card-foreground">
+          <CardHeader className={cardHeaderPadding}>
+            <CardTitle className={cardTitleClass}>No data available</CardTitle>
             <CardDescription>No projects/tasks/time entries found in the selected period.</CardDescription>
           </CardHeader>
-          <CardContent className="text-gray-700">
-            Try selecting Last 90 Days OR create tasks and time entries.
+          <CardContent className="text-muted-foreground">
+            Try selecting Last 90 Days or create tasks and time entries.
           </CardContent>
         </Card>
       ) : (
         <>
-          {/* KPI */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="pt-6">
+          <div className={`grid grid-cols-1 md:grid-cols-4 ${gridGap}`}>
+            <Card className="border-border bg-card text-card-foreground">
+              <CardContent className={cardTopPadding}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500">Projects Completed</p>
-                    <p className="text-2xl text-gray-900 mt-1">{data.kpis.projectsCompleted.value}</p>
-                    <p className="text-xs text-gray-600 flex items-center gap-1 mt-1">
+                    <p className="text-sm text-muted-foreground">Projects Completed</p>
+                    <p className={compactMode ? "text-xl font-semibold mt-1" : "text-2xl font-semibold mt-1"}>
+                      {data.kpis.projectsCompleted.value}
+                    </p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                       <TrendingUp className="w-3 h-3" />
                       {data.kpis.projectsCompleted.deltaPct >= 0 ? "+" : ""}
                       {data.kpis.projectsCompleted.deltaPct}% vs previous period
                     </p>
                   </div>
-                  <BarChart3 className="w-8 h-8 text-blue-600" />
+                  <BarChart3 className={compactMode ? "w-7 h-7 text-blue-600" : "w-8 h-8 text-blue-600"} />
                 </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardContent className="pt-6">
+            <Card className="border-border bg-card text-card-foreground">
+              <CardContent className={cardTopPadding}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500">Avg. Task Velocity</p>
-                    <p className="text-2xl text-gray-900 mt-1">{data.kpis.avgTaskVelocity.value}</p>
-                    <p className="text-xs text-gray-600 flex items-center gap-1 mt-1">
+                    <p className="text-sm text-muted-foreground">Avg. Task Velocity</p>
+                    <p className={compactMode ? "text-xl font-semibold mt-1" : "text-2xl font-semibold mt-1"}>
+                      {data.kpis.avgTaskVelocity.value}
+                    </p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                       <TrendingUp className="w-3 h-3" />
                       Completed tasks/week
                     </p>
                   </div>
-                  <TrendingUp className="w-8 h-8 text-green-600" />
+                  <TrendingUp className={compactMode ? "w-7 h-7 text-green-600" : "w-8 h-8 text-green-600"} />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className={isClient ? "opacity-60" : ""}>
-              <CardContent className="pt-6">
+            <Card className={`border-border bg-card text-card-foreground ${isClient ? "opacity-60" : ""}`}>
+              <CardContent className={cardTopPadding}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500">Team Productivity</p>
-                    <p className="text-2xl text-gray-900 mt-1">{isClient ? "Restricted" : `${data.kpis.teamProductivity.value}%`}</p>
-                    <p className="text-xs text-gray-600 flex items-center gap-1 mt-1">
+                    <p className="text-sm text-muted-foreground">Team Productivity</p>
+                    <p className={compactMode ? "text-xl font-semibold mt-1" : "text-2xl font-semibold mt-1"}>
+                      {isClient ? "Restricted" : `${data.kpis.teamProductivity.value}%`}
+                    </p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                       <Users className="w-3 h-3" />
                       {isClient ? "Not visible for clients" : data.kpis.teamProductivity.status}
                     </p>
                   </div>
-                  <Users className="w-8 h-8 text-purple-600" />
+                  <Users className={compactMode ? "w-7 h-7 text-purple-600" : "w-8 h-8 text-purple-600"} />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className={isClient ? "opacity-60" : ""}>
-              <CardContent className="pt-6">
+            <Card className={`border-border bg-card text-card-foreground ${isClient ? "opacity-60" : ""}`}>
+              <CardContent className={cardTopPadding}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500">Budget Efficiency</p>
-                    <p className="text-2xl text-gray-900 mt-1">{isClient ? "Restricted" : `${data.kpis.budgetEfficiency.value}%`}</p>
-                    <p className="text-xs text-gray-600 flex items-center gap-1 mt-1">
+                    <p className="text-sm text-muted-foreground">Budget Efficiency</p>
+                    <p className={compactMode ? "text-xl font-semibold mt-1" : "text-2xl font-semibold mt-1"}>
+                      {isClient ? "Restricted" : `${data.kpis.budgetEfficiency.value}%`}
+                    </p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                       <TrendingDown className="w-3 h-3" />
                       {isClient ? "Not visible for clients" : data.kpis.budgetEfficiency.status}
                     </p>
                   </div>
-                  <DollarSign className="w-8 h-8 text-yellow-600" />
+                  <DollarSign className={compactMode ? "w-7 h-7 text-yellow-600" : "w-8 h-8 text-yellow-600"} />
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* The rest of your component remains unchanged */}
-          {/* NOTE: kept your charts and UI same */}
-          <Tabs defaultValue="projects" className="space-y-6">
-            <TabsList>
+          <Tabs defaultValue="projects" className={sectionSpacing}>
+            <TabsList className={compactMode ? "h-9" : ""}>
               <TabsTrigger value="projects">Project Performance</TabsTrigger>
               {!isClient ? <TabsTrigger value="team">Team Analytics</TabsTrigger> : null}
               {isAdminOrPM ? <TabsTrigger value="budget">Budget & Resources</TabsTrigger> : null}
             </TabsList>
 
-            <TabsContent value="projects" className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Project Completion Trend</CardTitle>
+            <TabsContent value="projects" className={sectionSpacing}>
+              <div className={`grid grid-cols-1 lg:grid-cols-2 ${chartGridGap}`}>
+                <Card className="border-border bg-card text-card-foreground">
+                  <CardHeader className={cardHeaderPadding}>
+                    <CardTitle className={cardTitleClass}>Project Completion Trend</CardTitle>
                     <CardDescription>Completed vs In-Progress projects over time</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={chartHeight}>
                       <AreaChart data={data.charts.completionTrend}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="month" />
-                        <YAxis />
-                        <Tooltip />
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" />
+                        <YAxis stroke="hsl(var(--muted-foreground))" />
+                        <Tooltip contentStyle={chartTooltipStyle} />
                         <Area type="monotone" dataKey="completed" stackId="1" stroke="#3b82f6" fill="#3b82f6" />
                         <Area type="monotone" dataKey="inProgress" stackId="1" stroke="#f59e0b" fill="#f59e0b" />
                       </AreaChart>
@@ -293,18 +326,18 @@ export function ReportsPage() {
                   </CardContent>
                 </Card>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Task Velocity</CardTitle>
+                <Card className="border-border bg-card text-card-foreground">
+                  <CardHeader className={cardHeaderPadding}>
+                    <CardTitle className={cardTitleClass}>Task Velocity</CardTitle>
                     <CardDescription>Planned vs Completed tasks per week</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={data.charts.taskVelocity}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="week" />
-                        <YAxis />
-                        <Tooltip />
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="week" stroke="hsl(var(--muted-foreground))" />
+                        <YAxis stroke="hsl(var(--muted-foreground))" />
+                        <Tooltip contentStyle={chartTooltipStyle} />
                         <Bar dataKey="planned" fill="#94a3b8" />
                         <Bar dataKey="completed" fill="#3b82f6" />
                       </BarChart>
@@ -314,32 +347,38 @@ export function ReportsPage() {
               </div>
 
               {!isClient ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Time Distribution by Category</CardTitle>
+                <Card className="border-border bg-card text-card-foreground">
+                  <CardHeader className={cardHeaderPadding}>
+                    <CardTitle className={cardTitleClass}>Time Distribution by Category</CardTitle>
                     <CardDescription>From Time Entries grouped by task.category</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center gap-8">
-                      <ResponsiveContainer width="40%" height={300}>
+                    <div className={`flex items-center ${compactMode ? "gap-5" : "gap-8"} flex-col lg:flex-row`}>
+                      <ResponsiveContainer width={pieChartWidth} height={pieChartHeight}>
                         <PieChart>
-                          <Pie data={timeDistribution} cx="50%" cy="50%" outerRadius={100} dataKey="hours">
+                          <Pie
+                            data={timeDistribution}
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={compactMode ? 80 : 100}
+                            dataKey="hours"
+                          >
                             {timeDistribution.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={(entry as any).color} />
                             ))}
                           </Pie>
-                          <Tooltip />
+                          <Tooltip contentStyle={chartTooltipStyle} />
                         </PieChart>
                       </ResponsiveContainer>
 
-                      <div className="flex-1 space-y-3">
+                      <div className={`flex-1 ${listSpacing}`}>
                         {timeDistribution.map((item: any) => (
                           <div key={item.category} className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <div className="w-4 h-4 rounded" style={{ backgroundColor: item.color }} />
-                              <span className="text-gray-900">{item.category}</span>
+                              <div className={compactMode ? "w-3 h-3 rounded" : "w-4 h-4 rounded"} style={{ backgroundColor: item.color }} />
+                              <span className="text-card-foreground">{item.category}</span>
                             </div>
-                            <span className="text-gray-600">{item.hours} hours</span>
+                            <span className="text-muted-foreground">{item.hours} hours</span>
                           </div>
                         ))}
                       </div>
@@ -350,19 +389,19 @@ export function ReportsPage() {
             </TabsContent>
 
             {!isClient ? (
-              <TabsContent value="team" className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Team Productivity Scores</CardTitle>
+              <TabsContent value="team" className={sectionSpacing}>
+                <Card className="border-border bg-card text-card-foreground">
+                  <CardHeader className={cardHeaderPadding}>
+                    <CardTitle className={cardTitleClass}>Team Productivity Scores</CardTitle>
                     <CardDescription>Done tasks / total assigned tasks</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={chartHeight}>
                       <BarChart data={data.charts.productivityByMember}>
-                        <CartesianGrid strokeDasharray="3 3" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                         <XAxis dataKey="userId" hide />
-                        <YAxis domain={[0, 100]} />
-                        <Tooltip />
+                        <YAxis domain={[0, 100]} stroke="hsl(var(--muted-foreground))" />
+                        <Tooltip contentStyle={chartTooltipStyle} />
                         <Bar dataKey="productivity" fill="#10b981" />
                       </BarChart>
                     </ResponsiveContainer>
@@ -372,35 +411,39 @@ export function ReportsPage() {
             ) : null}
 
             {isAdminOrPM ? (
-              <TabsContent value="budget" className="space-y-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Budget Allocation & Usage</CardTitle>
+              <TabsContent value="budget" className={sectionSpacing}>
+                <Card className="border-border bg-card text-card-foreground">
+                  <CardHeader className={cardHeaderPadding}>
+                    <CardTitle className={cardTitleClass}>Budget Allocation & Usage</CardTitle>
                     <CardDescription>From Project.budget.allocated and Project.budget.spent</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-6">
+                    <div className={budgetSpacing}>
                       {data.charts.budgetByProject.map((project) => (
-                        <div key={project.project} className="space-y-2">
+                        <div key={project.project} className={compactMode ? "space-y-1.5" : "space-y-2"}>
                           <div className="flex items-center justify-between">
-                            <span className="text-gray-900">{project.project}</span>
-                            <span className="text-sm text-gray-600">
-                              ${project.spent.toLocaleString()} / ${project.allocated.toLocaleString()}
+                            <span className="text-card-foreground">{project.project}</span>
+                            <span className="text-sm text-muted-foreground">
+                              {formatCurrency(project.spent)} / {formatCurrency(project.allocated)}
                             </span>
                           </div>
 
-                          <div className="w-full bg-gray-100 rounded-full h-3">
+                          <div className={`w-full bg-muted rounded-full ${progressHeight}`}>
                             <div
                               className={`h-full rounded-full ${
-                                project.percentage > 90 ? "bg-red-600" : project.percentage > 75 ? "bg-yellow-600" : "bg-green-600"
+                                project.percentage > 90
+                                  ? "bg-red-600"
+                                  : project.percentage > 75
+                                  ? "bg-yellow-600"
+                                  : "bg-green-600"
                               }`}
                               style={{ width: `${project.percentage}%` }}
                             />
                           </div>
 
-                          <div className="flex items-center justify-between text-xs text-gray-500">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
                             <span>{project.percentage}% spent</span>
-                            <span>${(project.allocated - project.spent).toLocaleString()} remaining</span>
+                            <span>{formatCurrency(project.allocated - project.spent)} remaining</span>
                           </div>
                         </div>
                       ))}
@@ -415,4 +458,3 @@ export function ReportsPage() {
     </div>
   );
 }
-
