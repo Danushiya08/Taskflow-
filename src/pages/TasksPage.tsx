@@ -161,8 +161,7 @@ export function TasksPage() {
   const taskProgressMarginTop = compactMode ? "mt-3" : "mt-4";
   const dialogFieldSpacing = compactMode ? "space-y-3 py-1" : "space-y-4 py-2";
   const dialogGridGap = compactMode ? "gap-3" : "gap-4";
-  const iconButtonCompactClass = compactMode ? "h-9 w-9 p-0" : "";
-
+ 
   const resetCreate = () => {
     setFormTitle("");
     setFormDescription("");
