@@ -56,6 +56,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { toast } from "sonner";
+import { useUserPreferences } from "@/hooks/useUserPreferences";
+import { formatDateByPreference } from "@/lib/dateFormat";
 
 type ProjectStatus = "planning" | "active" | "on-hold" | "completed";
 type ProjectPriority = "low" | "medium" | "high";
@@ -96,6 +98,9 @@ export function ProjectsPage() {
 
   const [viewMode, setViewMode] = useState<ProjectViewMode>("grid");
   const [showCompletedProjects, setShowCompletedProjects] = useState(true);
+
+  const { preferences, loadingPreferences } = useUserPreferences();
+  const compactMode = preferences.compactMode;
 
   const currentUser = useMemo(() => {
     try {
@@ -167,6 +172,25 @@ export function ProjectsPage() {
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const pagePadding = compactMode ? "p-4" : "p-6";
+  const sectionSpacing = compactMode ? "space-y-4" : "space-y-6";
+  const titleClass = compactMode ? "text-2xl font-semibold mb-1" : "text-3xl font-semibold mb-2";
+  const subtitleClass = compactMode ? "text-sm text-muted-foreground" : "text-muted-foreground";
+  const gridGap = compactMode ? "gap-3" : "gap-4";
+  const cardGridGap = compactMode ? "gap-4" : "gap-6";
+  const cardTopPadding = compactMode ? "pt-4" : "pt-6";
+  const cardHeaderPadding = compactMode ? "pb-2" : "pb-4";
+  const metricValueClass = compactMode ? "text-xl font-semibold mt-1" : "text-2xl font-semibold mt-1";
+  const cardTitleClass = compactMode ? "text-base" : "text-lg";
+  const progressHeight = compactMode ? "h-2" : "h-3";
+  const buttonCompactClass = compactMode ? "h-9 px-3" : "";
+  const selectTriggerCompactClass = compactMode ? "h-9" : "";
+  const listSpacing = compactMode ? "space-y-3" : "space-y-4";
+  const innerSpacing = compactMode ? "space-y-1.5" : "space-y-2";
+  const dialogFieldSpacing = compactMode ? "space-y-3" : "space-y-4";
+  const dialogGridGap = compactMode ? "gap-3" : "gap-4";
+  const descriptionRows = compactMode ? 2 : 3;
+
   const loadProjects = async () => {
     try {
       const res = await api.get("/projects");
@@ -219,7 +243,6 @@ export function ProjectsPage() {
       setLoading(false);
     };
     init();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const resetCreateForm = () => {
@@ -265,7 +288,7 @@ export function ProjectsPage() {
     const d = project?.dueDate;
     if (!d) return "-";
     try {
-      return new Date(d).toLocaleDateString();
+      return formatDateByPreference(d, preferences.dateFormat);
     } catch {
       return "-";
     }
@@ -562,10 +585,10 @@ export function ProjectsPage() {
     return status.charAt(0).toUpperCase() + status.slice(1);
   };
 
-  if (loading) {
+  if (loading || loadingPreferences) {
     return (
-      <div className="p-6 space-y-2 bg-background text-foreground">
-        <h1 className="text-3xl font-semibold">Projects</h1>
+      <div className={`${pagePadding} space-y-2 bg-background text-foreground`}>
+        <h1 className={compactMode ? "text-2xl font-semibold" : "text-3xl font-semibold"}>Projects</h1>
         <p className="text-muted-foreground">Loading projects...</p>
       </div>
     );
@@ -578,11 +601,11 @@ export function ProjectsPage() {
   const selectedMembersObjectsAssign = usersList.filter((u) => membersPickIds.includes(u._id));
 
   return (
-    <div className="p-6 space-y-6 bg-background text-foreground">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
+      <div className={`flex items-center justify-between flex-wrap ${gridGap}`}>
         <div>
-          <h1 className="text-3xl font-semibold mb-2">Projects</h1>
-          <p className="text-muted-foreground">
+          <h1 className={titleClass}>Projects</h1>
+          <p className={subtitleClass}>
             {isClient
               ? "Client view (read-only progress)"
               : isTeam
@@ -593,12 +616,13 @@ export function ProjectsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className={`flex items-center gap-2 flex-wrap`}>
           <Button
             type="button"
             variant={viewMode === "grid" ? "default" : "outline"}
             size="sm"
             onClick={() => setViewMode("grid")}
+            className={buttonCompactClass}
           >
             <LayoutGrid className="w-4 h-4 mr-2" />
             Grid
@@ -609,6 +633,7 @@ export function ProjectsPage() {
             variant={viewMode === "list" ? "default" : "outline"}
             size="sm"
             onClick={() => setViewMode("list")}
+            className={buttonCompactClass}
           >
             <List className="w-4 h-4 mr-2" />
             List
@@ -623,7 +648,7 @@ export function ProjectsPage() {
           >
             {canCreateProject && (
               <DialogTrigger asChild>
-                <Button type="button">
+                <Button type="button" className={buttonCompactClass}>
                   <Plus className="w-4 h-4 mr-2" />
                   New Project
                 </Button>
@@ -640,22 +665,30 @@ export function ProjectsPage() {
                 </div>
 
                 <div className="p-6 pt-4 overflow-y-auto flex-1">
-                  <div className="space-y-4">
+                  <div className={dialogFieldSpacing}>
                     <div className="space-y-2">
                       <Label>Project Name</Label>
-                      <Input value={formName} onChange={(e) => setFormName(e.target.value)} />
+                      <Input
+                        value={formName}
+                        onChange={(e) => setFormName(e.target.value)}
+                        className={selectTriggerCompactClass}
+                      />
                     </div>
 
                     <div className="space-y-2">
                       <Label>Description</Label>
-                      <Textarea rows={3} value={formDescription} onChange={(e) => setFormDescription(e.target.value)} />
+                      <Textarea
+                        rows={descriptionRows}
+                        value={formDescription}
+                        onChange={(e) => setFormDescription(e.target.value)}
+                      />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className={`grid grid-cols-2 ${dialogGridGap}`}>
                       <div className="space-y-2">
                         <Label>Status</Label>
                         <Select value={formStatus} onValueChange={(v) => setFormStatus(v as ProjectStatus)}>
-                          <SelectTrigger>
+                          <SelectTrigger className={selectTriggerCompactClass}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -670,7 +703,7 @@ export function ProjectsPage() {
                       <div className="space-y-2">
                         <Label>Priority</Label>
                         <Select value={formPriority} onValueChange={(v) => setFormPriority(v as ProjectPriority)}>
-                          <SelectTrigger>
+                          <SelectTrigger className={selectTriggerCompactClass}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -684,18 +717,28 @@ export function ProjectsPage() {
 
                     <div className="space-y-2">
                       <Label>Budget (Allocated)</Label>
-                      <Input type="number" value={formBudgetAllocated} onChange={(e) => setFormBudgetAllocated(e.target.value)} />
+                      <Input
+                        type="number"
+                        value={formBudgetAllocated}
+                        onChange={(e) => setFormBudgetAllocated(e.target.value)}
+                        className={selectTriggerCompactClass}
+                      />
                     </div>
 
                     <div className="space-y-2">
                       <Label>Due Date</Label>
-                      <Input type="date" value={formDueDate} onChange={(e) => setFormDueDate(e.target.value)} />
+                      <Input
+                        type="date"
+                        value={formDueDate}
+                        onChange={(e) => setFormDueDate(e.target.value)}
+                        className={selectTriggerCompactClass}
+                      />
                     </div>
 
                     <div className="space-y-2">
                       <Label>Project Manager (optional)</Label>
                       <Select value={formManagerId} onValueChange={setFormManagerId}>
-                        <SelectTrigger>
+                        <SelectTrigger className={selectTriggerCompactClass}>
                           <SelectValue placeholder="Select a manager" />
                         </SelectTrigger>
                         <SelectContent>
@@ -707,15 +750,19 @@ export function ProjectsPage() {
                           ))}
                         </SelectContent>
                       </Select>
-                      {isPM && <div className="text-xs text-muted-foreground">If you don’t select a manager, it defaults to you.</div>}
+                      {isPM && (
+                        <div className="text-xs text-muted-foreground">
+                          If you don’t select a manager, it defaults to you.
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-2">
                       <Label>Members (optional) — Team Members only</Label>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className={`grid grid-cols-1 md:grid-cols-3 ${compactMode ? "gap-2.5" : "gap-3"}`}>
                         <div className="md:col-span-2">
                           <Select value={memberPick} onValueChange={setMemberPick}>
-                            <SelectTrigger>
+                            <SelectTrigger className={selectTriggerCompactClass}>
                               <SelectValue placeholder="Select team member" />
                             </SelectTrigger>
                             <SelectContent>
@@ -737,6 +784,7 @@ export function ProjectsPage() {
                             addMemberCreate(memberPick);
                             setMemberPick(NONE);
                           }}
+                          className={buttonCompactClass}
                         >
                           Add
                         </Button>
@@ -767,10 +815,20 @@ export function ProjectsPage() {
 
                 <div className="p-6 pt-4 border-t border-border bg-card">
                   <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsCreateDialogOpen(false)}
+                      className={buttonCompactClass}
+                    >
                       Cancel
                     </Button>
-                    <Button type="button" onClick={handleCreateProject} disabled={creating}>
+                    <Button
+                      type="button"
+                      onClick={handleCreateProject}
+                      disabled={creating}
+                      className={buttonCompactClass}
+                    >
                       {creating ? "Creating..." : "Create Project"}
                     </Button>
                   </DialogFooter>
@@ -781,70 +839,70 @@ export function ProjectsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className={`grid grid-cols-1 md:grid-cols-4 ${gridGap}`}>
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className="pt-6">
+          <CardContent className={cardTopPadding}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total</p>
-                <p className="text-2xl font-semibold mt-1">{stats.total}</p>
+                <p className={metricValueClass}>{stats.total}</p>
               </div>
-              <Target className="w-8 h-8 text-blue-600" />
+              <Target className={compactMode ? "w-7 h-7 text-blue-600" : "w-8 h-8 text-blue-600"} />
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className="pt-6">
+          <CardContent className={cardTopPadding}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Planning</p>
-                <p className="text-2xl font-semibold mt-1">{stats.planning}</p>
+                <p className={metricValueClass}>{stats.planning}</p>
               </div>
-              <AlertCircle className="w-8 h-8 text-yellow-600" />
+              <AlertCircle className={compactMode ? "w-7 h-7 text-yellow-600" : "w-8 h-8 text-yellow-600"} />
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className="pt-6">
+          <CardContent className={cardTopPadding}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Active</p>
-                <p className="text-2xl font-semibold mt-1">{stats.active}</p>
+                <p className={metricValueClass}>{stats.active}</p>
               </div>
-              <CheckCircle2 className="w-8 h-8 text-green-600" />
+              <CheckCircle2 className={compactMode ? "w-7 h-7 text-green-600" : "w-8 h-8 text-green-600"} />
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className="pt-6">
+          <CardContent className={cardTopPadding}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Completed</p>
-                <p className="text-2xl font-semibold mt-1">{stats.completed}</p>
+                <p className={metricValueClass}>{stats.completed}</p>
               </div>
-              <Clock className="w-8 h-8 text-muted-foreground" />
+              <Clock className={compactMode ? "w-7 h-7 text-muted-foreground" : "w-8 h-8 text-muted-foreground"} />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="flex gap-4 flex-wrap">
+      <div className={`flex ${gridGap} flex-wrap`}>
         <div className="flex-1 relative min-w-[260px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             type="search"
             placeholder="Search projects..."
-            className="pl-10"
+            className={`pl-10 ${selectTriggerCompactClass}`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
         <Select value={selectedFilter} onValueChange={(v) => setSelectedFilter(v as FilterValue)}>
-          <SelectTrigger className="w-56">
+          <SelectTrigger className={`w-56 ${selectTriggerCompactClass}`}>
             <Filter className="w-4 h-4 mr-2" />
             <SelectValue />
           </SelectTrigger>
@@ -860,7 +918,7 @@ export function ProjectsPage() {
       </div>
 
       {viewMode === "grid" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 ${cardGridGap}`}>
           {filteredProjects.map((project) => {
             const allocated = getBudgetAllocated(project);
             const progress = getProgress(project);
@@ -868,17 +926,22 @@ export function ProjectsPage() {
             const completedTasks = Number(project?.taskStats?.completed || 0);
 
             return (
-              <Card key={project._id} className="border-border bg-card text-card-foreground hover:shadow-lg transition-shadow">
-                <CardHeader>
+              <Card
+                key={project._id}
+                className="border-border bg-card text-card-foreground hover:shadow-lg transition-shadow"
+              >
+                <CardHeader className={cardHeaderPadding}>
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
-                      <CardTitle className="text-lg mb-2">{project.name}</CardTitle>
-                      <p className="text-sm text-muted-foreground">{project.description}</p>
+                      <CardTitle className={`${cardTitleClass} mb-2`}>{project.name}</CardTitle>
+                      <p className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
+                        {project.description}
+                      </p>
                     </div>
 
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button type="button" variant="ghost" size="icon">
+                        <Button type="button" variant="ghost" size="icon" className={compactMode ? "h-8 w-8" : ""}>
                           <MoreVertical className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -900,9 +963,15 @@ export function ProjectsPage() {
                           <DropdownMenuSub>
                             <DropdownMenuSubTrigger>Change Status</DropdownMenuSubTrigger>
                             <DropdownMenuSubContent className="w-48">
-                              <DropdownMenuItem onSelect={safeSelect(() => changeStatus(project, "active"))}>Active</DropdownMenuItem>
-                              <DropdownMenuItem onSelect={safeSelect(() => changeStatus(project, "completed"))}>Completed</DropdownMenuItem>
-                              <DropdownMenuItem onSelect={safeSelect(() => changeStatus(project, "on-hold"))}>On Hold</DropdownMenuItem>
+                              <DropdownMenuItem onSelect={safeSelect(() => changeStatus(project, "active"))}>
+                                Active
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={safeSelect(() => changeStatus(project, "completed"))}>
+                                Completed
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={safeSelect(() => changeStatus(project, "on-hold"))}>
+                                On Hold
+                              </DropdownMenuItem>
                             </DropdownMenuSubContent>
                           </DropdownMenuSub>
                         )}
@@ -945,31 +1014,31 @@ export function ProjectsPage() {
                   </div>
                 </CardHeader>
 
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
+                <CardContent className={compactMode ? "space-y-3" : "space-y-4"}>
+                  <div className={innerSpacing}>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Progress</span>
                       <span className="text-card-foreground">{progress}%</span>
                     </div>
-                    <Progress value={progress} />
+                    <Progress value={progress} className={progressHeight} />
                     <div className="text-xs text-muted-foreground">
                       {completedTasks} / {totalTasks} tasks completed
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className={`grid grid-cols-2 ${dialogGridGap} text-sm`}>
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <Users className="w-4 h-4" />
+                      <Users className={compactMode ? "w-3.5 h-3.5" : "w-4 h-4"} />
                       <span>{getMemberCount(project)} members</span>
                     </div>
                     <div className="flex items-center gap-2 text-muted-foreground">
-                      <Calendar className="w-4 h-4" />
+                      <Calendar className={compactMode ? "w-3.5 h-3.5" : "w-4 h-4"} />
                       <span>{getDueDate(project)}</span>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <DollarSign className="w-4 h-4" />
+                    <DollarSign className={compactMode ? "w-3.5 h-3.5" : "w-4 h-4"} />
                     <span>
                       Budget: <span className="text-card-foreground">{allocated.toLocaleString()}</span>
                     </span>
@@ -984,7 +1053,7 @@ export function ProjectsPage() {
           })}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className={listSpacing}>
           {filteredProjects.map((project) => {
             const allocated = getBudgetAllocated(project);
             const progress = getProgress(project);
@@ -993,38 +1062,42 @@ export function ProjectsPage() {
 
             return (
               <Card key={project._id} className="border-border bg-card text-card-foreground">
-                <CardContent className="pt-6">
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                    <div className="space-y-2 flex-1 min-w-0">
+                <CardContent className={cardTopPadding}>
+                  <div className={`flex flex-col lg:flex-row lg:items-center lg:justify-between ${gridGap}`}>
+                    <div className={`${innerSpacing} flex-1 min-w-0`}>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-lg font-semibold">{project.name}</h3>
+                        <h3 className={compactMode ? "text-base font-semibold" : "text-lg font-semibold"}>
+                          {project.name}
+                        </h3>
                         <Badge variant={statusBadgeVariant(project.status)}>{statusLabel(project.status)}</Badge>
                         <Badge variant="outline">{project.priority} priority</Badge>
                       </div>
 
-                      <p className="text-sm text-muted-foreground">{project.description}</p>
+                      <p className={compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground"}>
+                        {project.description}
+                      </p>
 
-                      <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                      <div className={`flex flex-wrap ${gridGap} text-sm text-muted-foreground`}>
                         <span className="flex items-center gap-2">
-                          <Users className="w-4 h-4" />
+                          <Users className={compactMode ? "w-3.5 h-3.5" : "w-4 h-4"} />
                           {getMemberCount(project)} members
                         </span>
                         <span className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
+                          <Calendar className={compactMode ? "w-3.5 h-3.5" : "w-4 h-4"} />
                           {getDueDate(project)}
                         </span>
                         <span className="flex items-center gap-2">
-                          <DollarSign className="w-4 h-4" />
+                          <DollarSign className={compactMode ? "w-3.5 h-3.5" : "w-4 h-4"} />
                           {allocated.toLocaleString()}
                         </span>
                       </div>
 
-                      <div className="space-y-2 max-w-xl">
+                      <div className={`${innerSpacing} max-w-xl`}>
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">Progress</span>
                           <span className="text-card-foreground">{progress}%</span>
                         </div>
-                        <Progress value={progress} />
+                        <Progress value={progress} className={progressHeight} />
                         <div className="text-xs text-muted-foreground">
                           {completedTasks} / {totalTasks} tasks completed • Manager:{" "}
                           <span className="text-card-foreground">{getManagerName(project)}</span>
@@ -1033,13 +1106,23 @@ export function ProjectsPage() {
                     </div>
 
                     <div className="flex items-center gap-2 self-start">
-                      <Button variant="outline" size="sm" onClick={() => openViewDetails(project)}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openViewDetails(project)}
+                        className={buttonCompactClass}
+                      >
                         <Eye className="w-4 h-4 mr-2" />
                         View
                       </Button>
 
                       {canEditProject && (
-                        <Button variant="outline" size="sm" onClick={() => openEditProject(project)}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => openEditProject(project)}
+                          className={buttonCompactClass}
+                        >
                           <Pencil className="w-4 h-4 mr-2" />
                           Edit
                         </Button>
@@ -1073,7 +1156,7 @@ export function ProjectsPage() {
             <DialogDescription>{viewTarget?.name}</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 text-sm">
+          <div className={compactMode ? "space-y-2.5 text-sm" : "space-y-3 text-sm"}>
             <div>
               <span className="text-muted-foreground">Description: </span>
               {viewTarget?.description || "-"}
@@ -1087,12 +1170,12 @@ export function ProjectsPage() {
               {viewTarget?.priority}
             </div>
 
-            <div className="space-y-1">
+            <div className={innerSpacing}>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Progress</span>
                 <span className="text-card-foreground">{getProgress(viewTarget)}%</span>
               </div>
-              <Progress value={getProgress(viewTarget)} />
+              <Progress value={getProgress(viewTarget)} className={progressHeight} />
               <div className="text-xs text-muted-foreground">
                 {Number(viewTarget?.taskStats?.completed || 0)} / {Number(viewTarget?.taskStats?.total || 0)} tasks completed
               </div>
@@ -1129,6 +1212,7 @@ export function ProjectsPage() {
                   size="sm"
                   onClick={() => viewTarget?._id && loadProjectTasks(viewTarget._id)}
                   disabled={tasksLoading}
+                  className={buttonCompactClass}
                 >
                   {tasksLoading ? "Loading..." : "Refresh"}
                 </Button>
@@ -1139,11 +1223,11 @@ export function ProjectsPage() {
               ) : tasks.length === 0 ? (
                 <div className="text-sm text-muted-foreground">No tasks found.</div>
               ) : (
-                <div className="space-y-2">
+                <div className={compactMode ? "space-y-1.5" : "space-y-2"}>
                   {tasks.map((t) => (
                     <div
                       key={t._id}
-                      className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border bg-card"
+                      className={`flex items-center justify-between gap-3 ${compactMode ? "p-2.5" : "p-3"} rounded-lg border border-border bg-card`}
                     >
                       <div className="min-w-0">
                         <div className="font-medium truncate">{t.title}</div>
@@ -1157,7 +1241,7 @@ export function ProjectsPage() {
 
                         {canUpdateTasks && !isClient && (
                           <Select value={t.status} onValueChange={(v) => updateTaskStatus(t._id, v as TaskStatus)}>
-                            <SelectTrigger className="w-40">
+                            <SelectTrigger className={`w-40 ${selectTriggerCompactClass}`}>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1176,7 +1260,7 @@ export function ProjectsPage() {
           )}
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setViewOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setViewOpen(false)} className={buttonCompactClass}>
               Close
             </Button>
           </DialogFooter>
@@ -1190,22 +1274,26 @@ export function ProjectsPage() {
             <DialogDescription>Update project details</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className={dialogFieldSpacing}>
             <div className="space-y-2">
               <Label>Name</Label>
-              <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} className={selectTriggerCompactClass} />
             </div>
 
             <div className="space-y-2">
               <Label>Description</Label>
-              <Textarea rows={3} value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+              <Textarea
+                rows={descriptionRows}
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+              />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className={`grid grid-cols-2 ${dialogGridGap}`}>
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select value={editStatus} onValueChange={(v) => setEditStatus(v as ProjectStatus)}>
-                  <SelectTrigger>
+                  <SelectTrigger className={selectTriggerCompactClass}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1220,7 +1308,7 @@ export function ProjectsPage() {
               <div className="space-y-2">
                 <Label>Priority</Label>
                 <Select value={editPriority} onValueChange={(v) => setEditPriority(v as ProjectPriority)}>
-                  <SelectTrigger>
+                  <SelectTrigger className={selectTriggerCompactClass}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1234,20 +1322,36 @@ export function ProjectsPage() {
 
             <div className="space-y-2">
               <Label>Budget (Allocated)</Label>
-              <Input type="number" value={editBudgetAllocated} onChange={(e) => setEditBudgetAllocated(e.target.value)} />
+              <Input
+                type="number"
+                value={editBudgetAllocated}
+                onChange={(e) => setEditBudgetAllocated(e.target.value)}
+                className={selectTriggerCompactClass}
+              />
             </div>
 
             <div className="space-y-2">
               <Label>Due Date</Label>
-              <Input type="date" value={editDueDate} onChange={(e) => setEditDueDate(e.target.value)} />
+              <Input
+                type="date"
+                value={editDueDate}
+                onChange={(e) => setEditDueDate(e.target.value)}
+                className={selectTriggerCompactClass}
+              />
             </div>
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setEditOpen(false)} disabled={savingEdit}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditOpen(false)}
+              disabled={savingEdit}
+              className={buttonCompactClass}
+            >
               Cancel
             </Button>
-            <Button type="button" onClick={saveEditProject} disabled={savingEdit}>
+            <Button type="button" onClick={saveEditProject} disabled={savingEdit} className={buttonCompactClass}>
               {savingEdit ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
@@ -1264,7 +1368,7 @@ export function ProjectsPage() {
           <div className="space-y-2">
             <Label>Project Manager</Label>
             <Select value={managerPick} onValueChange={setManagerPick}>
-              <SelectTrigger>
+              <SelectTrigger className={selectTriggerCompactClass}>
                 <SelectValue placeholder="Select a manager" />
               </SelectTrigger>
               <SelectContent>
@@ -1279,10 +1383,16 @@ export function ProjectsPage() {
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setManagerOpen(false)} disabled={savingManager}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setManagerOpen(false)}
+              disabled={savingManager}
+              className={buttonCompactClass}
+            >
               Cancel
             </Button>
-            <Button type="button" onClick={saveManager} disabled={savingManager}>
+            <Button type="button" onClick={saveManager} disabled={savingManager} className={buttonCompactClass}>
               {savingManager ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>
@@ -1296,13 +1406,13 @@ export function ProjectsPage() {
             <DialogDescription>{membersTarget?.name}</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3">
+          <div className={compactMode ? "space-y-2.5" : "space-y-3"}>
             <Label>Add team member</Label>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className={`grid grid-cols-1 md:grid-cols-3 ${compactMode ? "gap-2.5" : "gap-3"}`}>
               <div className="md:col-span-2">
                 <Select value={membersPick} onValueChange={setMembersPick}>
-                  <SelectTrigger>
+                  <SelectTrigger className={selectTriggerCompactClass}>
                     <SelectValue placeholder="Select team member" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1324,6 +1434,7 @@ export function ProjectsPage() {
                   addMemberAssign(membersPick);
                   setMembersPick(NONE);
                 }}
+                className={buttonCompactClass}
               >
                 Add
               </Button>
@@ -1353,10 +1464,16 @@ export function ProjectsPage() {
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setMembersOpen(false)} disabled={savingMembers}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setMembersOpen(false)}
+              disabled={savingMembers}
+              className={buttonCompactClass}
+            >
               Cancel
             </Button>
-            <Button type="button" onClick={saveMembers} disabled={savingMembers}>
+            <Button type="button" onClick={saveMembers} disabled={savingMembers} className={buttonCompactClass}>
               {savingMembers ? "Saving..." : "Save Members"}
             </Button>
           </DialogFooter>
@@ -1374,10 +1491,22 @@ export function ProjectsPage() {
           </DialogHeader>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleting}
+              className={buttonCompactClass}
+            >
               Cancel
             </Button>
-            <Button type="button" variant="destructive" onClick={confirmDelete} disabled={deleting}>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleting}
+              className={buttonCompactClass}
+            >
               {deleting ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>

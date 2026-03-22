@@ -95,6 +95,7 @@ export function BudgetPage() {
   });
 
   const { preferences, loadingPreferences } = useUserPreferences();
+  const compactMode = preferences.compactMode;
 
   const [form, setForm] = useState({
     description: "",
@@ -104,6 +105,28 @@ export function BudgetPage() {
     date: "",
     notes: "",
   });
+
+  const pagePadding = compactMode ? "p-4" : "p-6";
+  const sectionSpacing = compactMode ? "space-y-4" : "space-y-6";
+  const titleClass = compactMode ? "text-2xl font-semibold mb-1" : "text-3xl font-semibold mb-2";
+  const subtitleClass = compactMode ? "text-sm text-muted-foreground" : "text-muted-foreground";
+  const gridGap = compactMode ? "gap-3" : "gap-4";
+  const chartGridGap = compactMode ? "gap-4" : "gap-6";
+  const cardHeaderPadding = compactMode ? "pb-2" : "pb-4";
+  const cardTopPadding = compactMode ? "pt-4" : "pt-6";
+  const cardTitleClass = compactMode ? "text-base" : "text-lg";
+  const metricValueClass = compactMode ? "text-xl font-semibold mt-1" : "text-2xl font-semibold mt-1";
+  const buttonCompactClass = compactMode ? "h-9 px-3" : "";
+  const selectTriggerCompactClass = compactMode ? "h-9" : "";
+  const dialogFieldSpacing = compactMode ? "space-y-3 py-2" : "space-y-4 py-4";
+  const dialogGridGap = compactMode ? "gap-3" : "gap-4";
+  const textareaRows = compactMode ? 2 : 3;
+  const progressHeight = compactMode ? "h-2" : "h-3";
+  const listSpacing = compactMode ? "space-y-2.5" : "space-y-3";
+  const expenseRowPadding = compactMode ? "p-3" : "p-4";
+  const chartHeight = compactMode ? 240 : 300;
+  const chartWrapperMinHeight = compactMode ? 260 : 320;
+  const pieOuterRadius = compactMode ? 80 : 100;
 
   const resetForm = () =>
     setForm({
@@ -278,24 +301,24 @@ export function BudgetPage() {
 
   if (loadingPreferences) {
     return (
-      <div className="p-6 bg-background text-foreground">
+      <div className={`${pagePadding} bg-background text-foreground`}>
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className="pt-6 text-muted-foreground">Loading budget page...</CardContent>
+          <CardContent className={`${cardTopPadding} text-muted-foreground`}>Loading budget page...</CardContent>
         </Card>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6 bg-background text-foreground">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
+      <div className={`flex items-center justify-between flex-wrap ${gridGap}`}>
         <div>
-          <h1 className="text-3xl font-semibold mb-2">Budget Management</h1>
-          <p className="text-muted-foreground">Track expenses, allocations, and financial forecasts</p>
+          <h1 className={titleClass}>Budget Management</h1>
+          <p className={subtitleClass}>Track expenses, allocations, and financial forecasts</p>
         </div>
 
         <div className="flex gap-3">
-          <Button variant="outline" onClick={handleExport} disabled={loading.exporting}>
+          <Button variant="outline" onClick={handleExport} disabled={loading.exporting} className={buttonCompactClass}>
             <Download className="w-4 h-4 mr-2" />
             {loading.exporting ? "Exporting..." : "Export Report"}
           </Button>
@@ -308,7 +331,7 @@ export function BudgetPage() {
             }}
           >
             <DialogTrigger asChild>
-              <Button>
+              <Button className={buttonCompactClass}>
                 <Plus className="w-4 h-4 mr-2" />
                 Add Expense
               </Button>
@@ -320,7 +343,7 @@ export function BudgetPage() {
                 <DialogDescription>Record a new project expense</DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-4 py-4">
+              <div className={dialogFieldSpacing}>
                 <div className="space-y-2">
                   <Label htmlFor="expense-description">Description</Label>
                   <Input
@@ -328,6 +351,7 @@ export function BudgetPage() {
                     placeholder="e.g., Cloud hosting - December"
                     value={form.description}
                     onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+                    className={selectTriggerCompactClass}
                   />
                 </div>
 
@@ -339,14 +363,15 @@ export function BudgetPage() {
                     placeholder="1000"
                     value={form.amount}
                     onChange={(e) => setForm((p) => ({ ...p, amount: e.target.value }))}
+                    className={selectTriggerCompactClass}
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className={`grid grid-cols-2 ${dialogGridGap}`}>
                   <div className="space-y-2">
                     <Label htmlFor="expense-project">Project</Label>
                     <Select value={form.projectId} onValueChange={(v) => setForm((p) => ({ ...p, projectId: v }))}>
-                      <SelectTrigger id="expense-project">
+                      <SelectTrigger id="expense-project" className={selectTriggerCompactClass}>
                         <SelectValue placeholder="Select project" />
                       </SelectTrigger>
                       <SelectContent>
@@ -362,7 +387,7 @@ export function BudgetPage() {
                   <div className="space-y-2">
                     <Label htmlFor="expense-category">Category</Label>
                     <Select value={form.category} onValueChange={(v) => setForm((p) => ({ ...p, category: v }))}>
-                      <SelectTrigger id="expense-category">
+                      <SelectTrigger id="expense-category" className={selectTriggerCompactClass}>
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
@@ -384,6 +409,7 @@ export function BudgetPage() {
                     type="date"
                     value={form.date}
                     onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
+                    className={selectTriggerCompactClass}
                   />
                 </div>
 
@@ -392,7 +418,7 @@ export function BudgetPage() {
                   <Textarea
                     id="expense-notes"
                     placeholder="Additional details..."
-                    rows={2}
+                    rows={textareaRows}
                     value={form.notes}
                     onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
                   />
@@ -400,10 +426,15 @@ export function BudgetPage() {
               </div>
 
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddExpenseOpen(false)} disabled={loading.adding}>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAddExpenseOpen(false)}
+                  disabled={loading.adding}
+                  className={buttonCompactClass}
+                >
                   Cancel
                 </Button>
-                <Button onClick={handleAddExpense} disabled={loading.adding}>
+                <Button onClick={handleAddExpense} disabled={loading.adding} className={buttonCompactClass}>
                   {loading.adding ? "Adding..." : "Add Expense"}
                 </Button>
               </DialogFooter>
@@ -412,73 +443,73 @@ export function BudgetPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className={`grid grid-cols-1 md:grid-cols-4 ${gridGap}`}>
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className="pt-6">
+          <CardContent className={cardTopPadding}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Budget</p>
-                <p className="text-2xl font-semibold mt-1">{formatCompactCurrency(totalBudget)}</p>
+                <p className={metricValueClass}>{formatCompactCurrency(totalBudget)}</p>
               </div>
-              <DollarSign className="w-8 h-8 text-blue-600" />
+              <DollarSign className={compactMode ? "w-7 h-7 text-blue-600" : "w-8 h-8 text-blue-600"} />
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className="pt-6">
+          <CardContent className={cardTopPadding}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Total Spent</p>
-                <p className="text-2xl font-semibold mt-1">{formatCompactCurrency(totalSpent)}</p>
+                <p className={metricValueClass}>{formatCompactCurrency(totalSpent)}</p>
                 <p className="text-xs text-muted-foreground mt-1">{utilizationRate}% utilized</p>
               </div>
-              <TrendingUp className="w-8 h-8 text-green-600" />
+              <TrendingUp className={compactMode ? "w-7 h-7 text-green-600" : "w-8 h-8 text-green-600"} />
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className="pt-6">
+          <CardContent className={cardTopPadding}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">Remaining</p>
-                <p className="text-2xl font-semibold mt-1">{formatCompactCurrency(totalRemaining)}</p>
+                <p className={metricValueClass}>{formatCompactCurrency(totalRemaining)}</p>
                 <p className="text-xs text-muted-foreground mt-1">{Math.max(0, 100 - utilizationRate)}% available</p>
               </div>
-              <TrendingDown className="w-8 h-8 text-purple-600" />
+              <TrendingDown className={compactMode ? "w-7 h-7 text-purple-600" : "w-8 h-8 text-purple-600"} />
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className="pt-6">
+          <CardContent className={cardTopPadding}>
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">At Risk</p>
-                <p className="text-2xl font-semibold mt-1">{atRiskCount}</p>
+                <p className={metricValueClass}>{atRiskCount}</p>
                 <p className="text-xs text-muted-foreground mt-1">Project over 90%</p>
               </div>
-              <AlertTriangle className="w-8 h-8 text-yellow-600" />
+              <AlertTriangle className={compactMode ? "w-7 h-7 text-yellow-600" : "w-8 h-8 text-yellow-600"} />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="projects" className="space-y-6">
-        <TabsList>
+      <Tabs defaultValue="projects" className={sectionSpacing}>
+        <TabsList className={compactMode ? "h-9" : ""}>
           <TabsTrigger value="projects">Project Budgets</TabsTrigger>
           <TabsTrigger value="expenses">Recent Expenses</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="projects" className="space-y-4">
+        <TabsContent value="projects" className={compactMode ? "space-y-3" : "space-y-4"}>
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               type="search"
               placeholder="Search projects..."
-              className="pl-10"
+              className={`pl-10 ${selectTriggerCompactClass}`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -486,11 +517,11 @@ export function BudgetPage() {
 
           {loading.projects ? (
             <Card className="border-border bg-card text-card-foreground">
-              <CardContent className="pt-6 text-muted-foreground">Loading budgets...</CardContent>
+              <CardContent className={`${cardTopPadding} text-muted-foreground`}>Loading budgets...</CardContent>
             </Card>
           ) : filteredProjects.length === 0 ? (
             <Card className="border-border bg-card text-card-foreground">
-              <CardContent className="pt-6 text-muted-foreground">No projects found.</CardContent>
+              <CardContent className={`${cardTopPadding} text-muted-foreground`}>No projects found.</CardContent>
             </Card>
           ) : (
             filteredProjects.map((project) => {
@@ -499,10 +530,13 @@ export function BudgetPage() {
               const expenseBreakdown = Array.isArray(project.expenses) ? project.expenses : [];
 
               return (
-                <Card key={project.id} className="border-border bg-card text-card-foreground hover:shadow-lg transition-shadow">
-                  <CardHeader>
+                <Card
+                  key={project.id}
+                  className="border-border bg-card text-card-foreground hover:shadow-lg transition-shadow"
+                >
+                  <CardHeader className={cardHeaderPadding}>
                     <div className="flex items-center justify-between">
-                      <CardTitle>{project.name}</CardTitle>
+                      <CardTitle className={cardTitleClass}>{project.name}</CardTitle>
                       <Badge
                         variant={
                           project.status === "at-risk"
@@ -517,32 +551,41 @@ export function BudgetPage() {
                     </div>
                   </CardHeader>
 
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-3 gap-4 text-sm">
+                  <CardContent className={compactMode ? "space-y-3" : "space-y-4"}>
+                    <div className={`grid grid-cols-3 ${dialogGridGap} text-sm`}>
                       <div>
                         <p className="text-muted-foreground">Budget</p>
-                        <p className="text-lg font-medium text-card-foreground">{formatCurrency(project.budget)}</p>
+                        <p className={compactMode ? "text-base font-medium text-card-foreground" : "text-lg font-medium text-card-foreground"}>
+                          {formatCurrency(project.budget)}
+                        </p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Spent</p>
-                        <p className="text-lg font-medium text-card-foreground">{formatCurrency(project.spent)}</p>
+                        <p className={compactMode ? "text-base font-medium text-card-foreground" : "text-lg font-medium text-card-foreground"}>
+                          {formatCurrency(project.spent)}
+                        </p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Remaining</p>
-                        <p className="text-lg font-medium text-card-foreground">{formatCurrency(project.remaining)}</p>
+                        <p className={compactMode ? "text-base font-medium text-card-foreground" : "text-lg font-medium text-card-foreground"}>
+                          {formatCurrency(project.remaining)}
+                        </p>
                       </div>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className={compactMode ? "space-y-1.5" : "space-y-2"}>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Budget Utilization</span>
                         <span className="text-card-foreground">{percentageUsed}%</span>
                       </div>
-                      <Progress value={percentageUsed} className={percentageUsed > 90 ? "bg-red-100 dark:bg-red-950" : ""} />
+                      <Progress
+                        value={percentageUsed}
+                        className={`${progressHeight} ${percentageUsed > 90 ? "bg-red-100 dark:bg-red-950" : ""}`}
+                      />
                     </div>
 
                     {isOverBudget && (
-                      <div className="bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900 rounded-lg p-3 flex items-start gap-2">
+                      <div className={`${compactMode ? "p-2.5" : "p-3"} bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-900 rounded-lg flex items-start gap-2`}>
                         <AlertTriangle className="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5" />
                         <div className="text-sm">
                           <p className="text-yellow-900 dark:text-yellow-200">
@@ -561,7 +604,7 @@ export function BudgetPage() {
                       {expenseBreakdown.length === 0 ? (
                         <div className="text-sm text-muted-foreground">No expenses recorded yet.</div>
                       ) : (
-                        <div className="space-y-2">
+                        <div className={compactMode ? "space-y-1.5" : "space-y-2"}>
                           {expenseBreakdown.map((expense, idx) => (
                             <div key={idx} className="flex items-center justify-between text-sm">
                               <span className="text-muted-foreground">{expense.category}</span>
@@ -583,8 +626,8 @@ export function BudgetPage() {
 
         <TabsContent value="expenses">
           <Card className="border-border bg-card text-card-foreground">
-            <CardHeader>
-              <CardTitle>Recent Expenses</CardTitle>
+            <CardHeader className={cardHeaderPadding}>
+              <CardTitle className={cardTitleClass}>Recent Expenses</CardTitle>
               <CardDescription>Latest transactions and purchases</CardDescription>
             </CardHeader>
             <CardContent>
@@ -593,15 +636,17 @@ export function BudgetPage() {
               ) : recentExpenses.length === 0 ? (
                 <div className="text-sm text-muted-foreground">No expenses recorded yet.</div>
               ) : (
-                <div className="space-y-3">
+                <div className={listSpacing}>
                   {recentExpenses.map((expense) => (
                     <div
                       key={expense._id}
-                      className="flex items-center justify-between p-4 border border-border rounded-lg hover:border-primary/40 transition-colors"
+                      className={`flex items-center justify-between ${expenseRowPadding} border border-border rounded-lg hover:border-primary/40 transition-colors`}
                     >
                       <div className="flex-1">
-                        <h4 className="text-card-foreground font-medium">{expense.description || "-"}</h4>
-                        <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground flex-wrap">
+                        <h4 className={compactMode ? "text-sm font-medium text-card-foreground" : "text-card-foreground font-medium"}>
+                          {expense.description || "-"}
+                        </h4>
+                        <div className={`flex items-center ${compactMode ? "gap-3" : "gap-4"} mt-1 text-sm text-muted-foreground flex-wrap`}>
                           <Badge variant="outline">{expense.projectName || "Project"}</Badge>
                           <Badge variant="secondary">{expense.category || "Category"}</Badge>
                           <span className="flex items-center gap-1">
@@ -611,7 +656,7 @@ export function BudgetPage() {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-lg font-medium text-card-foreground">
+                        <p className={compactMode ? "text-base font-medium text-card-foreground" : "text-lg font-medium text-card-foreground"}>
                           {formatCurrency(Number(expense.amount || 0))}
                         </p>
                         <p className="text-xs text-muted-foreground">Approved by {expense.approvedByName || "—"}</p>
@@ -624,16 +669,16 @@ export function BudgetPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="analytics" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <TabsContent value="analytics" className={sectionSpacing}>
+          <div className={`grid grid-cols-1 lg:grid-cols-2 ${chartGridGap}`}>
             <Card className="border-border bg-card text-card-foreground">
-              <CardHeader>
-                <CardTitle>Monthly Spending Trend</CardTitle>
+              <CardHeader className={cardHeaderPadding}>
+                <CardTitle className={cardTitleClass}>Monthly Spending Trend</CardTitle>
                 <CardDescription>Total expenses per month</CardDescription>
               </CardHeader>
               <CardContent>
-                <div style={{ width: "100%", minHeight: 320 }}>
-                  <ResponsiveContainer width="100%" height={300}>
+                <div style={{ width: "100%", minHeight: chartWrapperMinHeight }}>
+                  <ResponsiveContainer width="100%" height={chartHeight}>
                     <LineChart data={monthlySpending}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                       <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" />
@@ -652,13 +697,13 @@ export function BudgetPage() {
             </Card>
 
             <Card className="border-border bg-card text-card-foreground">
-              <CardHeader>
-                <CardTitle>Expense by Category</CardTitle>
+              <CardHeader className={cardHeaderPadding}>
+                <CardTitle className={cardTitleClass}>Expense by Category</CardTitle>
                 <CardDescription>Distribution of spending across categories</CardDescription>
               </CardHeader>
               <CardContent>
-                <div style={{ width: "100%", minHeight: 320 }}>
-                  <ResponsiveContainer width="100%" height={300}>
+                <div style={{ width: "100%", minHeight: chartWrapperMinHeight }}>
+                  <ResponsiveContainer width="100%" height={chartHeight}>
                     <PieChart>
                       <Pie
                         data={categoryDistribution}
@@ -666,7 +711,7 @@ export function BudgetPage() {
                         cy="50%"
                         labelLine={false}
                         label={({ name, value }) => `${name}: ${formatCurrency(Number(value))}`}
-                        outerRadius={100}
+                        outerRadius={pieOuterRadius}
                         dataKey="value"
                       >
                         {categoryDistribution.map((entry, index) => (

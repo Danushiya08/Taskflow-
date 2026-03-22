@@ -7,7 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -42,14 +49,16 @@ const normalizeRole = (role: any) => {
   return r;
 };
 
-const getStatusIcon = (status: string) => {
+const getStatusIcon = (status: string, compactMode = false) => {
+  const iconClass = compactMode ? "w-3.5 h-3.5" : "w-4 h-4";
+
   switch (status) {
     case "done":
-      return <CheckCircle2 className="w-4 h-4 text-green-600" />;
+      return <CheckCircle2 className={`${iconClass} text-green-600`} />;
     case "in-progress":
-      return <Circle className="w-4 h-4 text-blue-600 fill-blue-600" />;
+      return <Circle className={`${iconClass} text-blue-600 fill-blue-600`} />;
     default:
-      return <Circle className="w-4 h-4 text-muted-foreground" />;
+      return <Circle className={`${iconClass} text-muted-foreground`} />;
   }
 };
 
@@ -97,6 +106,7 @@ export function TasksPage() {
   const [formAssignedTo, setFormAssignedTo] = useState<string>(NONE);
 
   const { preferences, loadingPreferences } = useUserPreferences();
+  const compactMode = preferences.compactMode;
 
   const currentUser = useMemo(() => {
     try {
@@ -119,6 +129,28 @@ export function TasksPage() {
   const canEditTask = role === "admin" || role === "project-manager";
   const isClient = role === "client";
   const isTeam = role === "team-member";
+
+  const pagePadding = compactMode ? "p-4" : "p-6";
+  const sectionSpacing = compactMode ? "space-y-4" : "space-y-6";
+  const headerTitleClass = compactMode ? "text-2xl font-semibold mb-1" : "text-3xl font-semibold mb-2";
+  const subtitleClass = compactMode ? "text-sm text-muted-foreground" : "text-muted-foreground";
+  const cardTopPadding = compactMode ? "pt-4" : "pt-6";
+  const metricValueClass = compactMode ? "text-xl font-semibold mt-1" : "text-2xl font-semibold mt-1";
+  const gridGap = compactMode ? "gap-3" : "gap-4";
+  const controlGap = compactMode ? "gap-3" : "gap-4";
+  const taskListSpacing = compactMode ? "space-y-2.5" : "space-y-3";
+  const taskDescriptionClass = compactMode ? "text-xs text-muted-foreground" : "text-sm text-muted-foreground";
+  const taskTitleClass = compactMode ? "text-base font-medium text-card-foreground" : "text-lg font-medium text-card-foreground";
+  const metaBadgeClass = compactMode ? "text-[11px]" : "";
+  const progressHeight = compactMode ? "h-2" : "h-3";
+  const actionPanelWidth = compactMode ? "min-w-[200px]" : "min-w-[220px]";
+  const taskCardInnerSpacing = compactMode ? "space-y-1.5" : "space-y-2";
+  const taskMetaMarginTop = compactMode ? "mt-2.5" : "mt-3";
+  const taskProgressMarginTop = compactMode ? "mt-3" : "mt-4";
+  const dialogFieldSpacing = compactMode ? "space-y-3 py-1" : "space-y-4 py-2";
+  const dialogGridGap = compactMode ? "gap-3" : "gap-4";
+  const selectTriggerCompactClass = compactMode ? "h-9" : "";
+  const buttonCompactClass = compactMode ? "h-9 px-3" : "";
 
   const resetCreate = () => {
     setFormTitle("");
@@ -288,8 +320,8 @@ export function TasksPage() {
 
   if (loading || loadingPreferences) {
     return (
-      <div className="p-6 space-y-2 bg-background text-foreground">
-        <h1 className="text-3xl font-semibold">Tasks</h1>
+      <div className={`${pagePadding} space-y-2 bg-background text-foreground`}>
+        <h1 className={compactMode ? "text-2xl font-semibold" : "text-3xl font-semibold"}>Tasks</h1>
         <p className="text-muted-foreground">Loading...</p>
       </div>
     );
@@ -297,19 +329,19 @@ export function TasksPage() {
 
   if (projects.length === 0) {
     return (
-      <div className="p-6 space-y-2 bg-background text-foreground">
-        <h1 className="text-3xl font-semibold">Tasks</h1>
+      <div className={`${pagePadding} space-y-2 bg-background text-foreground`}>
+        <h1 className={compactMode ? "text-2xl font-semibold" : "text-3xl font-semibold"}>Tasks</h1>
         <p className="text-muted-foreground">No projects available.</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6 bg-background text-foreground">
-      <div className="flex items-center justify-between flex-wrap gap-4">
+    <div className={`${pagePadding} ${sectionSpacing} bg-background text-foreground`}>
+      <div className={`flex items-center justify-between flex-wrap ${controlGap}`}>
         <div>
-          <h1 className="text-3xl font-semibold mb-2">Tasks</h1>
-          <p className="text-muted-foreground">
+          <h1 className={headerTitleClass}>Tasks</h1>
+          <p className={subtitleClass}>
             {isClient
               ? "Client view: project progress + completed tasks (read-only)"
               : isTeam
@@ -319,7 +351,7 @@ export function TasksPage() {
         </div>
 
         {canCreateTask && (
-          <Button type="button" onClick={() => setIsCreateOpen(true)}>
+          <Button type="button" onClick={() => setIsCreateOpen(true)} className={buttonCompactClass}>
             <Plus className="w-4 h-4 mr-2" />
             New Task
           </Button>
@@ -327,7 +359,7 @@ export function TasksPage() {
       </div>
 
       <Card className="border-border bg-card text-card-foreground">
-        <CardContent className="pt-6 space-y-2">
+        <CardContent className={`${cardTopPadding} ${compactMode ? "space-y-1.5" : "space-y-2"}`}>
           <div className="flex items-center justify-between text-sm flex-wrap gap-2">
             <div className="text-muted-foreground">
               Project Progress:{" "}
@@ -335,11 +367,9 @@ export function TasksPage() {
                 {summary.progress}% ({summary.done}/{summary.total} done)
               </span>
             </div>
-            <div className="text-xs text-muted-foreground">
-              Calculated as (Done ÷ Total) × 100
-            </div>
+            <div className="text-xs text-muted-foreground">Calculated as (Done ÷ Total) × 100</div>
           </div>
-          <Progress value={Math.max(0, Math.min(100, summary.progress))} />
+          <Progress value={Math.max(0, Math.min(100, summary.progress))} className={progressHeight} />
         </CardContent>
       </Card>
 
@@ -356,11 +386,11 @@ export function TasksPage() {
             <DialogDescription>Create a task under the selected project</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className={dialogFieldSpacing}>
             <div className="space-y-2">
               <Label>Project</Label>
               <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-                <SelectTrigger>
+                <SelectTrigger className={selectTriggerCompactClass}>
                   <SelectValue placeholder="Select project" />
                 </SelectTrigger>
                 <SelectContent>
@@ -379,23 +409,24 @@ export function TasksPage() {
                 value={formTitle}
                 onChange={(e) => setFormTitle(e.target.value)}
                 placeholder="Task title"
+                className={selectTriggerCompactClass}
               />
             </div>
 
             <div className="space-y-2">
               <Label>Description</Label>
               <Textarea
-                rows={3}
+                rows={compactMode ? 2 : 3}
                 value={formDescription}
                 onChange={(e) => setFormDescription(e.target.value)}
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className={`grid grid-cols-2 ${dialogGridGap}`}>
               <div className="space-y-2">
                 <Label>Status</Label>
                 <Select value={formStatus} onValueChange={(v) => setFormStatus(v as TaskStatus)}>
-                  <SelectTrigger>
+                  <SelectTrigger className={selectTriggerCompactClass}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -408,11 +439,8 @@ export function TasksPage() {
 
               <div className="space-y-2">
                 <Label>Priority</Label>
-                <Select
-                  value={formPriority}
-                  onValueChange={(v) => setFormPriority(v as TaskPriority)}
-                >
-                  <SelectTrigger>
+                <Select value={formPriority} onValueChange={(v) => setFormPriority(v as TaskPriority)}>
+                  <SelectTrigger className={selectTriggerCompactClass}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -425,20 +453,21 @@ export function TasksPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className={`grid grid-cols-2 ${dialogGridGap}`}>
               <div className="space-y-2">
                 <Label>Due Date</Label>
                 <Input
                   type="date"
                   value={formDueDate}
                   onChange={(e) => setFormDueDate(e.target.value)}
+                  className={selectTriggerCompactClass}
                 />
               </div>
 
               <div className="space-y-2">
                 <Label>Assign To (optional)</Label>
                 <Select value={formAssignedTo} onValueChange={setFormAssignedTo}>
-                  <SelectTrigger>
+                  <SelectTrigger className={selectTriggerCompactClass}>
                     <SelectValue placeholder="Select user" />
                   </SelectTrigger>
                   <SelectContent>
@@ -455,22 +484,22 @@ export function TasksPage() {
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>
+            <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)} className={buttonCompactClass}>
               Cancel
             </Button>
-            <Button type="button" onClick={handleCreateTask} disabled={creating}>
+            <Button type="button" onClick={handleCreateTask} disabled={creating} className={buttonCompactClass}>
               {creating ? "Creating..." : "Create Task"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 items-start">
+      <div className={`grid grid-cols-1 lg:grid-cols-5 ${gridGap} items-start`}>
         <Card className="lg:col-span-1 border-border bg-card text-card-foreground">
-          <CardContent className="pt-6 space-y-2">
+          <CardContent className={`${cardTopPadding} ${compactMode ? "space-y-1.5" : "space-y-2"}`}>
             <div className="text-sm font-medium text-card-foreground">Project</div>
             <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
-              <SelectTrigger>
+              <SelectTrigger className={selectTriggerCompactClass}>
                 <SelectValue placeholder="Select project" />
               </SelectTrigger>
               <SelectContent>
@@ -488,48 +517,48 @@ export function TasksPage() {
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className="pt-6">
+          <CardContent className={cardTopPadding}>
             <p className="text-sm text-muted-foreground">Total</p>
-            <p className="text-2xl font-semibold mt-1">{summary.total}</p>
+            <p className={metricValueClass}>{summary.total}</p>
           </CardContent>
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className="pt-6">
+          <CardContent className={cardTopPadding}>
             <p className="text-sm text-muted-foreground">Done</p>
-            <p className="text-2xl font-semibold mt-1">{summary.done}</p>
+            <p className={metricValueClass}>{summary.done}</p>
           </CardContent>
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className="pt-6">
+          <CardContent className={cardTopPadding}>
             <p className="text-sm text-muted-foreground">Progress</p>
-            <p className="text-2xl font-semibold mt-1">{summary.progress}%</p>
+            <p className={metricValueClass}>{summary.progress}%</p>
           </CardContent>
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
-          <CardContent className="pt-6">
+          <CardContent className={cardTopPadding}>
             <p className="text-sm text-muted-foreground">Visible Tasks</p>
-            <p className="text-2xl font-semibold mt-1">{filteredTasks.length}</p>
+            <p className={metricValueClass}>{filteredTasks.length}</p>
           </CardContent>
         </Card>
       </div>
 
-      <div className="flex gap-4 items-center flex-wrap">
+      <div className={`flex ${controlGap} items-center flex-wrap`}>
         <div className="flex-1 relative min-w-[260px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             type="search"
             placeholder="Search tasks..."
-            className="pl-10"
+            className={`pl-10 ${selectTriggerCompactClass}`}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
         <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as "all" | TaskStatus)}>
-          <SelectTrigger className="w-48">
+          <SelectTrigger className={`w-48 ${selectTriggerCompactClass}`}>
             <Filter className="w-4 h-4 mr-2" />
             <SelectValue />
           </SelectTrigger>
@@ -546,6 +575,7 @@ export function TasksPage() {
           variant="outline"
           onClick={() => loadTasks(selectedProjectId)}
           disabled={tasksLoading}
+          className={buttonCompactClass}
         >
           {tasksLoading ? "Refreshing..." : "Refresh"}
         </Button>
@@ -556,57 +586,55 @@ export function TasksPage() {
       ) : filteredTasks.length === 0 ? (
         <div className="text-sm text-muted-foreground">No tasks found.</div>
       ) : (
-        <div className="space-y-3">
+        <div className={taskListSpacing}>
           {filteredTasks.map((t) => (
             <Card
               key={t._id}
               className="border-border bg-card text-card-foreground hover:shadow-md transition-shadow"
             >
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between gap-4 flex-col lg:flex-row">
+              <CardContent className={cardTopPadding}>
+                <div className={`flex items-start justify-between ${controlGap} flex-col lg:flex-row`}>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      {getStatusIcon(t.status)}
-                      <h3 className="text-lg font-medium text-card-foreground">{t.title}</h3>
+                      {getStatusIcon(t.status, compactMode)}
+                      <h3 className={taskTitleClass}>{t.title}</h3>
                     </div>
 
-                    {t.description ? (
-                      <p className="text-sm text-muted-foreground">{t.description}</p>
-                    ) : null}
+                    {t.description ? <p className={taskDescriptionClass}>{t.description}</p> : null}
 
-                    <div className="flex flex-wrap items-center gap-2 mt-3">
-                      <Badge variant={getPriorityVariant(t.priority)}>
+                    <div className={`flex flex-wrap items-center gap-2 ${taskMetaMarginTop}`}>
+                      <Badge variant={getPriorityVariant(t.priority)} className={metaBadgeClass}>
                         <Flag className="w-3 h-3 mr-1" />
                         {t.priority}
                       </Badge>
 
-                      <Badge variant="secondary">
+                      <Badge variant="secondary" className={metaBadgeClass}>
                         <User className="w-3 h-3 mr-1" />
                         {t?.assignedTo?.name || "Unassigned"}
                       </Badge>
 
                       {t?.dueDate ? (
-                        <Badge variant="outline">
+                        <Badge variant="outline" className={metaBadgeClass}>
                           <Calendar className="w-3 h-3 mr-1" />
                           {formatDateByPreference(t.dueDate, preferences.dateFormat)}
                         </Badge>
                       ) : null}
                     </div>
 
-                    <div className="mt-4 space-y-2">
+                    <div className={`${taskProgressMarginTop} ${taskCardInnerSpacing}`}>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted-foreground">Task Status Progress</span>
                         <span className="text-card-foreground">{derivedProgress(t)}%</span>
                       </div>
-                      <Progress value={derivedProgress(t)} />
+                      <Progress value={derivedProgress(t)} className={progressHeight} />
                     </div>
                   </div>
 
-                  <div className="min-w-[220px] space-y-2 w-full lg:w-auto">
+                  <div className={`${actionPanelWidth} ${taskCardInnerSpacing} w-full lg:w-auto`}>
                     {canEditTask ? (
                       <>
                         <Select value={t.status} onValueChange={(v) => updateTask(t._id, { status: v })}>
-                          <SelectTrigger>
+                          <SelectTrigger className={selectTriggerCompactClass}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -616,11 +644,8 @@ export function TasksPage() {
                           </SelectContent>
                         </Select>
 
-                        <Select
-                          value={t.priority}
-                          onValueChange={(v) => updateTask(t._id, { priority: v })}
-                        >
-                          <SelectTrigger>
+                        <Select value={t.priority} onValueChange={(v) => updateTask(t._id, { priority: v })}>
+                          <SelectTrigger className={selectTriggerCompactClass}>
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -632,11 +657,7 @@ export function TasksPage() {
                         </Select>
 
                         {canDeleteTask && (
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            onClick={() => deleteTask(t._id)}
-                          >
+                          <Button type="button" variant="destructive" onClick={() => deleteTask(t._id)} className={buttonCompactClass}>
                             <Trash2 className="w-4 h-4 mr-2" />
                             Delete
                           </Button>
