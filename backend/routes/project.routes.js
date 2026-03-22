@@ -1,12 +1,14 @@
-// backend/routes/project.routes.js
 const express = require("express");
 const router = express.Router();
 
 const authMiddleware = require("../middleware/authMiddleware");
 const Project = require("../models/Project");
-
-// ✅ use membership table (ProjectMember)
 const ProjectMember = require("../models/ProjectMember");
+
+const {
+  createNotificationsForUsers,
+  notifyByRoles,
+} = require("../utils/notificationHelper");
 
 // ---------- helpers ----------
 const refId = (val) => {
@@ -19,10 +21,12 @@ const refId = (val) => {
 const normalizeRole = (role) => {
   const r = String(role || "").trim().toLowerCase();
   if (r === "admin") return "admin";
-  if (["project-manager", "projectmanager", "project manager", "pm"].includes(r))
+  if (["project-manager", "projectmanager", "project manager", "pm"].includes(r)) {
     return "project-manager";
-  if (["team-member", "teammember", "team member", "member"].includes(r))
+  }
+  if (["team-member", "teammember", "team member", "member"].includes(r)) {
     return "team-member";
+  }
   if (r === "client") return "client";
   return r;
 };
@@ -40,26 +44,20 @@ const isProjectManagerOf = (req, project) =>
 const isCreatorOf = (req, project) =>
   refId(project?.createdBy) === getUserId(req);
 
-// ✅ Everyone logged-in can view projects
 const canViewProject = (req) => Boolean(getUserId(req));
 
-// ✅ Admin can edit any project
-// ✅ PM can edit ONLY if PM is manager or creator
 const canEditProject = (req, project) => {
   if (isAdmin(req)) return true;
   if (isPM(req)) return isProjectManagerOf(req, project) || isCreatorOf(req, project);
   return false;
 };
 
-// ✅ Admin can delete any project
-// ✅ PM can delete ONLY if PM is manager or creator
 const canDeleteProject = (req, project) => {
   if (isAdmin(req)) return true;
   if (isPM(req)) return isProjectManagerOf(req, project) || isCreatorOf(req, project);
   return false;
 };
 
-// ✅ NEW: sync ProjectMember docs (minimal + safe)
 const uniqIds = (arr) =>
   [...new Set((Array.isArray(arr) ? arr : []).filter(Boolean).map((x) => String(x)))];
 
@@ -74,24 +72,34 @@ const upsertMembersForProject = async (project) => {
   const desired = [];
 
   if (pmId) desired.push({ user: pmId, roleInProject: "project-manager" });
-  if (creatorId && creatorId !== pmId)
+  if (creatorId && creatorId !== pmId) {
     desired.push({ user: creatorId, roleInProject: "project-manager" });
+  }
 
-  for (const mid of memberIds) desired.push({ user: mid, roleInProject: "team-member" });
-  if (clientId) desired.push({ user: clientId, roleInProject: "client" });
+  for (const mid of memberIds) {
+    desired.push({ user: mid, roleInProject: "team-member" });
+  }
 
-  // keep it small: remove old & recreate (simple + consistent)
+  if (clientId) {
+    desired.push({ user: clientId, roleInProject: "client" });
+  }
+
   await ProjectMember.deleteMany({ project: projectId });
+
   if (desired.length) {
     await ProjectMember.insertMany(
-      desired.map((d) => ({ project: projectId, user: d.user, roleInProject: d.roleInProject })),
+      desired.map((d) => ({
+        project: projectId,
+        user: d.user,
+        roleInProject: d.roleInProject,
+      })),
       { ordered: false }
     ).catch(() => {});
   }
 };
 
 // =====================================================
-// ✅ GET PROJECTS (FILTERED BY ROLE)
+// GET PROJECTS
 // =====================================================
 router.get("/", authMiddleware, async (req, res) => {
   try {
@@ -101,7 +109,6 @@ router.get("/", authMiddleware, async (req, res) => {
 
     const userId = getUserId(req);
 
-    // ✅ Admin → all projects
     if (isAdmin(req)) {
       const projects = await Project.find({})
         .populate("projectManager", "name role email")
@@ -111,8 +118,6 @@ router.get("/", authMiddleware, async (req, res) => {
       return res.json({ projects });
     }
 
-    // ✅ FIX (Client): do NOT depend on ProjectMember only
-    // Client projects come from Project.client field in your schema
     if (isClient(req)) {
       const projects = await Project.find({ client: userId })
         .populate("projectManager", "name role email")
@@ -122,13 +127,11 @@ router.get("/", authMiddleware, async (req, res) => {
       return res.json({ projects });
     }
 
-    // ✅ PM / Team → fetch project ids from ProjectMember table
     const memberships = await ProjectMember.find({ user: userId }).select("project roleInProject");
     const projectIds = memberships.map((m) => m.project);
 
     let filter = { _id: { $in: projectIds } };
 
-    // ✅ Optional: PM can also see projects they manage or created (even if membership missing)
     if (isPM(req)) {
       filter = {
         $or: [
@@ -146,12 +149,13 @@ router.get("/", authMiddleware, async (req, res) => {
 
     return res.json({ projects });
   } catch (err) {
+    console.error("Get projects error:", err);
     return res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
 // =====================================================
-// ✅ CREATE PROJECT (ADMIN + PROJECT MANAGER)
+// CREATE PROJECT
 // =====================================================
 router.post("/", authMiddleware, async (req, res) => {
   try {
@@ -172,8 +176,6 @@ router.post("/", authMiddleware, async (req, res) => {
       members,
       budgetAllocated,
       dueDate,
-
-      // accept both, but your schema is ONLY `client`
       clientId,
       client,
     } = req.body;
@@ -189,7 +191,6 @@ router.post("/", authMiddleware, async (req, res) => {
         ? userId
         : null;
 
-    // ✅ FIX: map to schema field `client`
     const chosenClient =
       (client && String(client).trim()) || (clientId && String(clientId).trim()) || null;
 
@@ -205,13 +206,64 @@ router.post("/", authMiddleware, async (req, res) => {
       dueDate: dueDate ? new Date(dueDate) : null,
       progress: 0,
       archived: false,
-
-      // ✅ schema-supported field
       client: chosenClient,
     });
 
-    // ✅ NEW: keep ProjectMember table in sync
     await upsertMembersForProject(project);
+
+    // Notify assigned project manager
+    if (project.projectManager && String(project.projectManager) !== String(userId)) {
+      await createNotificationsForUsers({
+        userIds: [project.projectManager],
+        type: "project_created",
+        title: "New project assigned",
+        message: `You have been assigned as project manager for "${project.name}"`,
+        relatedProject: project._id,
+        relatedTask: null,
+      });
+    }
+
+    // Notify team members
+    if (Array.isArray(project.members) && project.members.length > 0) {
+      const memberIds = project.members
+        .map((m) => String(m))
+        .filter((memberId) => memberId !== String(userId));
+
+      if (memberIds.length) {
+        await createNotificationsForUsers({
+          userIds: memberIds,
+          type: "project_created",
+          title: "Added to new project",
+          message: `You have been added to the project "${project.name}"`,
+          relatedProject: project._id,
+          relatedTask: null,
+        });
+      }
+    }
+
+    // Notify client
+    if (project.client && String(project.client) !== String(userId)) {
+      await createNotificationsForUsers({
+        userIds: [project.client],
+        type: "project_created",
+        title: "Project created",
+        message: `Your project "${project.name}" has been created.`,
+        relatedProject: project._id,
+        relatedTask: null,
+      });
+    }
+
+    // Notify admin / PM stakeholders except actor
+    await notifyByRoles({
+      projectId: project._id,
+      roles: ["admin", "project-manager"],
+      type: "activity_added",
+      title: "Project created",
+      message: `Project "${project.name}" was created.`,
+      relatedProject: project._id,
+      relatedTask: null,
+      excludeUserIds: [userId],
+    });
 
     const populated = await Project.findById(project._id)
       .populate("projectManager", "name role email")
@@ -219,99 +271,83 @@ router.post("/", authMiddleware, async (req, res) => {
 
     return res.status(201).json({ message: "Project created", project: populated });
   } catch (err) {
+    console.error("Create project error:", err);
     return res.status(500).json({ message: "Server error", error: err.message });
   }
 });
 
 // =====================================================
-// ✅ UPDATE PROJECT (ADMIN + PM scoped)
+// UPDATE PROJECT
+// =====================================================
+// =====================================================
+// PATCH PROJECT (needed for frontend api.patch)
 // =====================================================
 router.patch("/:id", authMiddleware, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
-    if (!project) return res.status(404).json({ message: "Project not found" });
+
+    if (!project) {
+      return res.status(404).json({ message: "Project not found" });
+    }
 
     if (!canEditProject(req, project)) {
-      return res.status(403).json({ message: "Not allowed" });
+      return res.status(403).json({ message: "Not allowed to edit this project" });
     }
 
-    const body = req.body || {};
+    const {
+      name,
+      description,
+      status,
+      priority,
+      projectManager,
+      members,
+      budgetAllocated,
+      dueDate,
+      client,
+    } = req.body;
 
-    if (body.name !== undefined) project.name = String(body.name).trim();
-    if (body.description !== undefined)
-      project.description = String(body.description || "");
-    if (body.status !== undefined) project.status = body.status;
-    if (body.priority !== undefined) project.priority = body.priority;
-    if (body.dueDate !== undefined)
-      project.dueDate = body.dueDate ? new Date(body.dueDate) : null;
+    if (name !== undefined) project.name = name;
+    if (description !== undefined) project.description = description;
+    if (status !== undefined) project.status = status;
+    if (priority !== undefined) project.priority = priority;
+    if (projectManager !== undefined) project.projectManager = projectManager;
+    if (members !== undefined) project.members = members;
 
-    if (body.budgetAllocated !== undefined) {
-      project.budget = project.budget || { allocated: 0, spent: 0 };
-      project.budget.allocated = Number(body.budgetAllocated) || 0;
+    if (budgetAllocated !== undefined) {
+      project.budget.allocated = Number(budgetAllocated) || 0;
     }
 
-    if (body.projectManager !== undefined) {
-      project.projectManager = body.projectManager ? body.projectManager : null;
+    if (dueDate !== undefined) {
+      project.dueDate = dueDate ? new Date(dueDate) : null;
     }
 
-    if (body.members !== undefined) {
-      project.members = Array.isArray(body.members) ? body.members : [];
-    }
-
-    // ✅ NEW: allow updating client properly (schema is `client`)
-    if (body.client !== undefined || body.clientId !== undefined) {
-      const chosenClient =
-        (body.client && String(body.client).trim()) ||
-        (body.clientId && String(body.clientId).trim()) ||
-        null;
-      project.client = chosenClient;
+    if (client !== undefined) {
+      project.client = client;
     }
 
     await project.save();
 
-    // ✅ NEW: keep ProjectMember table in sync
     await upsertMembersForProject(project);
 
     const populated = await Project.findById(project._id)
       .populate("projectManager", "name role email")
       .populate("members", "name role email");
 
-    return res.json({ message: "Project updated", project: populated });
-  } catch (err) {
-    return res.status(500).json({ message: "Server error", error: err.message });
-  }
-});
-
-// =====================================================
-// ✅ ARCHIVE PROJECT (ADMIN + PM scoped)
-// =====================================================
-router.patch("/:id/archive", authMiddleware, async (req, res) => {
-  try {
-    const project = await Project.findById(req.params.id);
-    if (!project) return res.status(404).json({ message: "Project not found" });
-
-    if (!canEditProject(req, project)) {
-      return res.status(403).json({ message: "Not allowed" });
-    }
-
-    project.archived = Boolean(req.body.archived);
-    await project.save();
-
-    const populated = await Project.findById(project._id)
-      .populate("projectManager", "name role email")
-      .populate("members", "name role email");
-
     return res.json({
-      message: project.archived ? "Project archived" : "Project unarchived",
+      message: "Project patched",
       project: populated,
     });
+
   } catch (err) {
-    return res.status(500).json({ message: "Server error", error: err.message });
+    console.error("Patch project error:", err);
+    return res.status(500).json({
+      message: "Server error",
+      error: err.message,
+    });
   }
 });
-
 // =====================================================
-// ✅ DELETE PROJECT (ADMIN + PM scoped)
+// DELETE PROJECT
 // =====================================================
 router.delete("/:id", authMiddleware, async (req, res) => {
   try {
@@ -322,11 +358,27 @@ router.delete("/:id", authMiddleware, async (req, res) => {
       return res.status(403).json({ message: "Not allowed to delete this project" });
     }
 
+    const projectName = project.name;
+    const projectId = project._id;
+    const actorId = getUserId(req);
+
+    await notifyByRoles({
+      projectId,
+      roles: ["admin", "project-manager"],
+      type: "activity_added",
+      title: "Project deleted",
+      message: `Project "${projectName}" was deleted.`,
+      relatedProject: projectId,
+      relatedTask: null,
+      excludeUserIds: [actorId],
+    });
+
     await ProjectMember.deleteMany({ project: project._id }).catch(() => {});
     await Project.deleteOne({ _id: project._id });
 
     return res.json({ message: "Project deleted" });
   } catch (err) {
+    console.error("Delete project error:", err);
     return res.status(500).json({ message: "Server error", error: err.message });
   }
 });

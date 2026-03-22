@@ -1,10 +1,15 @@
-// backend/routes/task.routes.js
 const express = require("express");
 const router = express.Router();
 
 const authMiddleware = require("../middleware/authMiddleware");
 const Project = require("../models/Project");
 const Task = require("../models/Task");
+const Notification = require("../models/Notification");
+
+const {
+  createNotificationsForUsers,
+  notifyByRoles,
+} = require("../utils/notificationHelper");
 
 // ---------- helpers ----------
 const normalizeRole = (role) => {
@@ -62,7 +67,6 @@ const clientCanViewProject = (req, project) => {
   if (!isClient(req)) return false;
   const cid = userIdFromReq(req);
 
-  // ✅ Your Project schema uses `client`
   const projectClientId = id(project?.client) || id(project?.client?._id);
 
   return projectClientId === cid;
@@ -93,7 +97,6 @@ router.get("/client/tasks", authMiddleware, async (req, res) => {
     const clientId = userIdFromReq(req);
     if (!clientId) return res.status(401).json({ message: "Unauthorized" });
 
-    // ✅ only use `client`
     const clientProjects = await Project.find({ client: clientId }).select("_id");
     const projectIds = clientProjects.map((p) => p._id);
 
@@ -131,14 +134,12 @@ const getProjectTasksHandler = async (req, res) => {
     const project = await Project.findById(req.params.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
 
-    // ✅ client must only access own projects
     if (isClient(req) && !clientCanViewProject(req, project)) {
       return res.status(403).json({ message: "Not allowed for this project" });
     }
 
     let query = { projectId: project._id };
 
-    // Team → only assigned tasks
     if (isTeam(req)) {
       query.assignedTo = req.user.id || req.user?._id;
     }
@@ -183,6 +184,30 @@ const createProjectTaskHandler = async (req, res) => {
       createdBy: req.user.id || req.user?._id,
     });
 
+    // Notify assigned user
+    if (task.assignedTo) {
+      await createNotificationsForUsers({
+        userIds: [task.assignedTo],
+        type: "task_assigned",
+        title: "New task assigned",
+        message: `You have been assigned a new task: ${task.title}`,
+        relatedProject: task.projectId,
+        relatedTask: task._id,
+      });
+    }
+
+    // Notify PM/admin that task was created
+    await notifyByRoles({
+      projectId: task.projectId,
+      roles: ["admin", "project-manager"],
+      type: "activity_added",
+      title: "Task created",
+      message: `A new task "${task.title}" was created.`,
+      relatedProject: task.projectId,
+      relatedTask: task._id,
+      excludeUserIds: [userIdFromReq(req)],
+    });
+
     const populated = await Task.findById(task._id).populate("assignedTo", "name email role");
     const summary = await recalcProjectProgress(project._id);
 
@@ -208,6 +233,9 @@ router.patch("/tasks/:id", authMiddleware, async (req, res) => {
   try {
     const task = await Task.findById(req.params.id);
     if (!task) return res.status(404).json({ message: "Task not found" });
+
+    const oldAssignedTo = task.assignedTo ? String(task.assignedTo) : null;
+    const oldStatus = task.status;
 
     const project = await Project.findById(task.projectId);
     if (!project) return res.status(404).json({ message: "Project not found" });
@@ -237,6 +265,69 @@ router.patch("/tasks/:id", authMiddleware, async (req, res) => {
 
     await task.save();
 
+    const newAssignedTo = task.assignedTo ? String(task.assignedTo) : null;
+
+    // Notify newly assigned user
+    if (newAssignedTo && newAssignedTo !== oldAssignedTo) {
+      await createNotificationsForUsers({
+        userIds: [task.assignedTo],
+        type: "task_assigned",
+        title: "Task assigned",
+        message: `You have been assigned to task: ${task.title}`,
+        relatedProject: task.projectId,
+        relatedTask: task._id,
+      });
+
+      // Notify PM/admin about reassignment
+      await notifyByRoles({
+        projectId: task.projectId,
+        roles: ["admin", "project-manager"],
+        type: "activity_added",
+        title: "Task reassigned",
+        message: `Task "${task.title}" was reassigned.`,
+        relatedProject: task.projectId,
+        relatedTask: task._id,
+        excludeUserIds: [userIdFromReq(req), newAssignedTo],
+      });
+    }
+
+    // Notify assigned user when status changes
+    if (task.assignedTo && req.body.status !== undefined && task.status !== oldStatus) {
+      await createNotificationsForUsers({
+        userIds: [task.assignedTo],
+        type: "task_status_changed",
+        title: "Task status updated",
+        message: `The status of task "${task.title}" changed from "${oldStatus}" to "${task.status}"`,
+        relatedProject: task.projectId,
+        relatedTask: task._id,
+      });
+
+      // Notify PM/admin/team about status change
+      await notifyByRoles({
+        projectId: task.projectId,
+        roles: ["admin", "project-manager"],
+        type: "task_status_changed",
+        title: "Task status changed",
+        message: `Task "${task.title}" changed from "${oldStatus}" to "${task.status}".`,
+        relatedProject: task.projectId,
+        relatedTask: task._id,
+        excludeUserIds: [userIdFromReq(req), String(task.assignedTo)],
+      });
+
+      // Optional client-facing update when task is done
+      if (String(task.status).toLowerCase() === "done") {
+        await notifyByRoles({
+          projectId: task.projectId,
+          roles: ["client"],
+          type: "activity_added",
+          title: "Project progress updated",
+          message: `A task "${task.title}" has been completed.`,
+          relatedProject: task.projectId,
+          relatedTask: task._id,
+        });
+      }
+    }
+
     const populated = await Task.findById(task._id).populate("assignedTo", "name email role");
     const summary = await recalcProjectProgress(project._id);
 
@@ -261,6 +352,18 @@ router.delete("/tasks/:id", authMiddleware, async (req, res) => {
     if (!canManageTasksForProject(req, project)) return res.status(403).json({ message: "Not allowed" });
 
     await Task.deleteOne({ _id: task._id });
+
+    await notifyByRoles({
+      projectId: task.projectId,
+      roles: ["admin", "project-manager"],
+      type: "activity_added",
+      title: "Task deleted",
+      message: `Task "${task.title}" was deleted.`,
+      relatedProject: task.projectId,
+      relatedTask: task._id,
+      excludeUserIds: [userIdFromReq(req)],
+    });
+
     const summary = await recalcProjectProgress(project._id);
 
     return res.json({ message: "Task deleted", summary });

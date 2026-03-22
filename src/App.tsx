@@ -17,6 +17,7 @@ import { KanbanPage } from "./pages/KanbanPage";
 import { BudgetPage } from "./pages/BudgetPage";
 import { TasksPage } from "./pages/TasksPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
 
 import { ClientDashboard } from "./components/dashboards/ClientDashboard";
 import { ProjectManagerDashboard } from "./components/dashboards/ProjectManagerDashboard";
@@ -36,6 +37,7 @@ type Page =
   | "kanban"
   | "budget"
   | "tasks"
+  | "notifications"
   | "settings";
 
 const applyTheme = (theme: string) => {
@@ -79,6 +81,7 @@ export default function App() {
         "kanban",
         "budget",
         "tasks",
+        "notifications",
         "settings",
       ],
       "project-manager": [
@@ -93,6 +96,7 @@ export default function App() {
         "kanban",
         "budget",
         "tasks",
+        "notifications",
         "settings",
       ],
       "team-member": [
@@ -103,9 +107,19 @@ export default function App() {
         "calendar",
         "kanban",
         "tasks",
+        "notifications",
         "settings",
       ],
-      client: ["dashboard", "projects", "tasks", "documents", "reports", "calendar", "settings"],
+      client: [
+        "dashboard",
+        "projects",
+        "tasks",
+        "documents",
+        "reports",
+        "calendar",
+        "notifications",
+        "settings",
+      ],
     }),
     []
   );
@@ -177,7 +191,7 @@ export default function App() {
       setPage("dashboard");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, role]);
+  }, [user, role, page]);
 
   if (loading) {
     return (
@@ -226,6 +240,7 @@ export default function App() {
               {page === "kanban" && isAllowed("kanban") && <KanbanPage />}
               {page === "budget" && isAllowed("budget") && <BudgetPage />}
               {page === "tasks" && isAllowed("tasks") && <TasksPage />}
+              {page === "notifications" && isAllowed("notifications") && <NotificationsPage />}
               {page === "settings" && isAllowed("settings") && <SettingsPage />}
             </main>
           </div>

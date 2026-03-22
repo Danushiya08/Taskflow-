@@ -20,6 +20,7 @@ const cloudRoutes = require("./routes/cloud.routes");
 const projectRolesRoutes = require("./routes/projectRoles.routes");
 const riskRoutes = require("./routes/risk.routes");
 const settingsRoutes = require("./routes/settings.routes");
+const notificationRoutes = require("./routes/notification.routes");
 
 const app = express();
 
@@ -102,6 +103,7 @@ app.use("/api", cloudRoutes);
 app.use("/api", projectRolesRoutes);
 app.use("/api/risks", riskRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 /**
  * 404 handler (for unknown routes)

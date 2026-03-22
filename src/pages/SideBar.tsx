@@ -11,6 +11,7 @@ import {
   Columns,
   DollarSign,
   ListChecks,
+  Bell,
 } from "lucide-react";
 
 import { cn } from "@/components/ui/utils";
@@ -91,6 +92,12 @@ export function Sidebar({ currentPage, onNavigate, currentUser }: SidebarProps) 
       id: "tasks",
       label: "Tasks",
       icon: ListChecks,
+      roles: ["admin", "project-manager", "team-member", "client"] as Role[],
+    },
+    {
+      id: "notifications",
+      label: "Notifications",
+      icon: Bell,
       roles: ["admin", "project-manager", "team-member", "client"] as Role[],
     },
     {
