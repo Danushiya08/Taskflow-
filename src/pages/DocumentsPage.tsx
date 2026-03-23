@@ -23,6 +23,7 @@ import {
   RotateCcw,
   Shield,
   Lock,
+  Trash2,
 } from "lucide-react";
 import {
   Dialog,
@@ -58,6 +59,13 @@ type DocVersion = {
   changeNote?: string;
 };
 
+type SharedUser = {
+  _id: string;
+  name?: string;
+  email?: string;
+  role?: string;
+};
+
 type DocumentRow = {
   _id: string;
   project: string;
@@ -67,6 +75,7 @@ type DocumentRow = {
   status: "draft" | "in-review" | "approved";
   versions: DocVersion[];
   currentVersion: number;
+  sharedWith?: Array<SharedUser | string>;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -273,7 +282,7 @@ export function DocumentsPage() {
           });
           all.push(...(res.data?.docs || []));
         } catch {
-          // ignore inaccessible
+          // ignore inaccessible projects
         }
       }
 
@@ -385,6 +394,7 @@ export function DocumentsPage() {
       await api.post(`/documents/${activeDoc._id}/share`, { userIds });
       toast.success("Document shared!");
       setShareOpen(false);
+      await fetchDocuments();
     } catch (e: any) {
       console.error(e);
       toast.error(e?.response?.data?.message || "Share failed");
@@ -412,6 +422,34 @@ export function DocumentsPage() {
     }
   };
 
+  const deleteDoc = async (doc: DocumentRow) => {
+    const projectRole = getProjectRole(doc.project);
+
+    if (!canManage(projectRole)) {
+      toast.error("Only Admin / Project Manager can delete");
+      return;
+    }
+
+    const ok = window.confirm(`Delete "${doc.title}" ?`);
+    if (!ok) return;
+
+    try {
+      await api.delete(`/documents/${doc._id}`);
+      toast.success("Document deleted");
+      await fetchDocuments();
+
+      if (activeDoc?._id === doc._id) {
+        setVersionsOpen(false);
+        setShareOpen(false);
+        setActiveDoc(null);
+        setActiveDocVersions([]);
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.response?.data?.message || "Delete failed");
+    }
+  };
+
   const totalVersions = useMemo(() => documents.reduce((sum, d) => sum + (d.versions?.length || 0), 0), [documents]);
 
   const totalStorageBytes = useMemo(() => {
@@ -424,7 +462,9 @@ export function DocumentsPage() {
     return sum;
   }, [documents]);
 
-  const sharedFilesCount = 0;
+  const sharedFilesCount = useMemo(() => {
+    return documents.filter((d) => Array.isArray(d.sharedWith) && d.sharedWith.length > 0).length;
+  }, [documents]);
 
   const filteredDocuments = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -717,6 +757,7 @@ export function DocumentsPage() {
                     const projectRole = getProjectRole(doc.project);
 
                     const showShare = canShare(projectRole);
+                    const showDelete = canManage(projectRole);
                     const isClient = normalizeRole(me?.role) === "client";
 
                     return (
@@ -744,6 +785,13 @@ export function DocumentsPage() {
                               )}
 
                               <Badge variant="outline">{doc.status}</Badge>
+
+                              {Array.isArray(doc.sharedWith) && doc.sharedWith.length > 0 ? (
+                                <Badge variant="secondary" className="gap-1">
+                                  <Share2 className="w-3 h-3" />
+                                  Shared
+                                </Badge>
+                              ) : null}
                             </div>
 
                             <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground flex-wrap">
@@ -784,9 +832,15 @@ export function DocumentsPage() {
                             </Button>
                           ) : null}
 
-                          <Button variant="ghost" size="icon" title="More">
-                            <MoreVertical className="w-4 h-4" />
-                          </Button>
+                          {showDelete ? (
+                            <Button variant="ghost" size="icon" title="Delete" onClick={() => deleteDoc(doc)}>
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </Button>
+                          ) : (
+                            <Button variant="ghost" size="icon" title="More">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     );
@@ -1009,6 +1063,13 @@ export function DocumentsPage() {
           )}
 
           <DialogFooter>
+            {activeDoc && canManage(getProjectRole(activeDoc.project)) ? (
+              <Button variant="destructive" onClick={() => deleteDoc(activeDoc)}>
+                <Trash2 className="w-4 h-4 mr-2" />
+                Delete Document
+              </Button>
+            ) : null}
+
             <Button variant="outline" onClick={() => setVersionsOpen(false)}>
               Close
             </Button>

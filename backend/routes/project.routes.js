@@ -4,6 +4,7 @@ const router = express.Router();
 const authMiddleware = require("../middleware/authMiddleware");
 const Project = require("../models/Project");
 const ProjectMember = require("../models/ProjectMember");
+const { logActivity } = require("../utils/activityHelper");
 
 const {
   createNotificationsForUsers,
@@ -27,7 +28,9 @@ const normalizeRole = (role) => {
   if (["team-member", "teammember", "team member", "member"].includes(r)) {
     return "team-member";
   }
-  if (r === "client") return "client";
+  if (["client", "customer", "viewer", "external-client", "external client"].includes(r)) {
+    return "client";
+  }
   return r;
 };
 
@@ -71,17 +74,34 @@ const upsertMembersForProject = async (project) => {
 
   const desired = [];
 
-  if (pmId) desired.push({ user: pmId, roleInProject: "project-manager" });
+  if (pmId) {
+    desired.push({
+      user: pmId,
+      roleInProject: "project-manager",
+    });
+  }
+
   if (creatorId && creatorId !== pmId) {
-    desired.push({ user: creatorId, roleInProject: "project-manager" });
+    desired.push({
+      user: creatorId,
+      roleInProject: "project-manager",
+    });
   }
 
   for (const mid of memberIds) {
-    desired.push({ user: mid, roleInProject: "team-member" });
+    if (mid !== pmId && mid !== creatorId) {
+      desired.push({
+        user: mid,
+        roleInProject: "team-member",
+      });
+    }
   }
 
-  if (clientId) {
-    desired.push({ user: clientId, roleInProject: "client" });
+  if (clientId && clientId !== pmId && clientId !== creatorId && !memberIds.includes(clientId)) {
+    desired.push({
+      user: clientId,
+      roleInProject: "client",
+    });
   }
 
   await ProjectMember.deleteMany({ project: projectId });
@@ -113,6 +133,7 @@ router.get("/", authMiddleware, async (req, res) => {
       const projects = await Project.find({})
         .populate("projectManager", "name role email")
         .populate("members", "name role email")
+        .populate("client", "name role email")
         .sort({ createdAt: -1 });
 
       return res.json({ projects });
@@ -122,6 +143,7 @@ router.get("/", authMiddleware, async (req, res) => {
       const projects = await Project.find({ client: userId })
         .populate("projectManager", "name role email")
         .populate("members", "name role email")
+        .populate("client", "name role email")
         .sort({ createdAt: -1 });
 
       return res.json({ projects });
@@ -145,6 +167,7 @@ router.get("/", authMiddleware, async (req, res) => {
     const projects = await Project.find(filter)
       .populate("projectManager", "name role email")
       .populate("members", "name role email")
+      .populate("client", "name role email")
       .sort({ createdAt: -1 });
 
     return res.json({ projects });
@@ -192,7 +215,9 @@ router.post("/", authMiddleware, async (req, res) => {
         : null;
 
     const chosenClient =
-      (client && String(client).trim()) || (clientId && String(clientId).trim()) || null;
+      (client && String(client).trim()) ||
+      (clientId && String(clientId).trim()) ||
+      null;
 
     const project = await Project.create({
       name: String(name).trim(),
@@ -211,7 +236,15 @@ router.post("/", authMiddleware, async (req, res) => {
 
     await upsertMembersForProject(project);
 
-    // Notify assigned project manager
+    await logActivity({
+      user: userId,
+      action: "project_created",
+      entityType: "project",
+      entityId: project._id,
+      project: project._id,
+      description: `Created project "${project.name}"`,
+    });
+
     if (project.projectManager && String(project.projectManager) !== String(userId)) {
       await createNotificationsForUsers({
         userIds: [project.projectManager],
@@ -223,7 +256,6 @@ router.post("/", authMiddleware, async (req, res) => {
       });
     }
 
-    // Notify team members
     if (Array.isArray(project.members) && project.members.length > 0) {
       const memberIds = project.members
         .map((m) => String(m))
@@ -241,7 +273,6 @@ router.post("/", authMiddleware, async (req, res) => {
       }
     }
 
-    // Notify client
     if (project.client && String(project.client) !== String(userId)) {
       await createNotificationsForUsers({
         userIds: [project.client],
@@ -253,7 +284,6 @@ router.post("/", authMiddleware, async (req, res) => {
       });
     }
 
-    // Notify admin / PM stakeholders except actor
     await notifyByRoles({
       projectId: project._id,
       roles: ["admin", "project-manager"],
@@ -267,7 +297,8 @@ router.post("/", authMiddleware, async (req, res) => {
 
     const populated = await Project.findById(project._id)
       .populate("projectManager", "name role email")
-      .populate("members", "name role email");
+      .populate("members", "name role email")
+      .populate("client", "name role email");
 
     return res.status(201).json({ message: "Project created", project: populated });
   } catch (err) {
@@ -278,9 +309,6 @@ router.post("/", authMiddleware, async (req, res) => {
 
 // =====================================================
 // UPDATE PROJECT
-// =====================================================
-// =====================================================
-// PATCH PROJECT (needed for frontend api.patch)
 // =====================================================
 router.patch("/:id", authMiddleware, async (req, res) => {
   try {
@@ -304,6 +332,7 @@ router.patch("/:id", authMiddleware, async (req, res) => {
       budgetAllocated,
       dueDate,
       client,
+      clientId,
     } = req.body;
 
     if (name !== undefined) project.name = name;
@@ -325,19 +354,32 @@ router.patch("/:id", authMiddleware, async (req, res) => {
       project.client = client;
     }
 
+    if (clientId !== undefined) {
+      project.client = clientId;
+    }
+
     await project.save();
 
     await upsertMembersForProject(project);
 
+    await logActivity({
+      user: getUserId(req),
+      action: "project_updated",
+      entityType: "project",
+      entityId: project._id,
+      project: project._id,
+      description: `Updated project "${project.name}"`,
+    });
+
     const populated = await Project.findById(project._id)
       .populate("projectManager", "name role email")
-      .populate("members", "name role email");
+      .populate("members", "name role email")
+      .populate("client", "name role email");
 
     return res.json({
       message: "Project patched",
       project: populated,
     });
-
   } catch (err) {
     console.error("Patch project error:", err);
     return res.status(500).json({
@@ -346,6 +388,7 @@ router.patch("/:id", authMiddleware, async (req, res) => {
     });
   }
 });
+
 // =====================================================
 // DELETE PROJECT
 // =====================================================
@@ -374,6 +417,16 @@ router.delete("/:id", authMiddleware, async (req, res) => {
     });
 
     await ProjectMember.deleteMany({ project: project._id }).catch(() => {});
+
+    await logActivity({
+      user: actorId,
+      action: "project_deleted",
+      entityType: "project",
+      entityId: project._id,
+      project: project._id,
+      description: `Deleted project "${project.name}"`,
+    });
+
     await Project.deleteOne({ _id: project._id });
 
     return res.json({ message: "Project deleted" });

@@ -5,6 +5,7 @@ const authMiddleware = require("../middleware/authMiddleware");
 const Project = require("../models/Project");
 const Task = require("../models/Task");
 const Notification = require("../models/Notification");
+const { logActivity } = require("../utils/activityHelper");
 
 const {
   createNotificationsForUsers,
@@ -184,6 +185,16 @@ const createProjectTaskHandler = async (req, res) => {
       createdBy: req.user.id || req.user?._id,
     });
 
+    await logActivity({
+      user: userIdFromReq(req),
+      action: "task_created",
+      entityType: "task",
+      entityId: task._id,
+      project: task.projectId,
+      task: task._id,
+      description: `Created task "${task.title}"`,
+    });
+
     // Notify assigned user
     if (task.assignedTo) {
       await createNotificationsForUsers({
@@ -264,6 +275,16 @@ router.patch("/tasks/:id", authMiddleware, async (req, res) => {
     }
 
     await task.save();
+
+    await logActivity({
+      user: userIdFromReq(req),
+      action: "task_updated",
+      entityType: "task",
+      entityId: task._id,
+      project: task.projectId,
+      task: task._id,
+      description: `Updated task "${task.title}"`,
+  });
 
     const newAssignedTo = task.assignedTo ? String(task.assignedTo) : null;
 
@@ -351,7 +372,17 @@ router.delete("/tasks/:id", authMiddleware, async (req, res) => {
     if (isTeam(req) || isClient(req)) return res.status(403).json({ message: "Not allowed" });
     if (!canManageTasksForProject(req, project)) return res.status(403).json({ message: "Not allowed" });
 
-    await Task.deleteOne({ _id: task._id });
+    await logActivity({
+      user: userIdFromReq(req),
+      action: "task_deleted",
+      entityType: "task",
+      entityId: task._id,
+      project: task.projectId,
+      task: task._id,
+      description: `Deleted task "${task.title}"`,
+    });
+
+await Task.deleteOne({ _id: task._id });
 
     await notifyByRoles({
       projectId: task.projectId,

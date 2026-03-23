@@ -31,3 +31,7 @@ backend/.env
 *.njsproj
 *.sln
 *.sw?
+
+backend/uploads/
+uploads/
+*.pdf

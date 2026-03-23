@@ -18,6 +18,7 @@ import { BudgetPage } from "./pages/BudgetPage";
 import { TasksPage } from "./pages/TasksPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { ActivityPage } from "./pages/ActivityPage";
 
 import { ClientDashboard } from "./components/dashboards/ClientDashboard";
 import { ProjectManagerDashboard } from "./components/dashboards/ProjectManagerDashboard";
@@ -38,6 +39,7 @@ type Page =
   | "budget"
   | "tasks"
   | "notifications"
+  | "activity"
   | "settings";
 
 const applyTheme = (theme: string) => {
@@ -82,6 +84,7 @@ export default function App() {
         "budget",
         "tasks",
         "notifications",
+        "activity",
         "settings",
       ],
       "project-manager": [
@@ -97,7 +100,9 @@ export default function App() {
         "budget",
         "tasks",
         "notifications",
+        "activity",
         "settings",
+
       ],
       "team-member": [
         "dashboard",
@@ -108,6 +113,7 @@ export default function App() {
         "kanban",
         "tasks",
         "notifications",
+        "activity",
         "settings",
       ],
       client: [
@@ -118,6 +124,7 @@ export default function App() {
         "reports",
         "calendar",
         "notifications",
+        "activity",
         "settings",
       ],
     }),
@@ -241,6 +248,7 @@ export default function App() {
               {page === "budget" && isAllowed("budget") && <BudgetPage />}
               {page === "tasks" && isAllowed("tasks") && <TasksPage />}
               {page === "notifications" && isAllowed("notifications") && <NotificationsPage />}
+               {page === "activity" && isAllowed("activity") && <ActivityPage />}
               {page === "settings" && isAllowed("settings") && <SettingsPage />}
             </main>
           </div>

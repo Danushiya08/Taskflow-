@@ -137,6 +137,7 @@ export function ProjectsPage() {
   const [formDueDate, setFormDueDate] = useState<string>("");
 
   const [formManagerId, setFormManagerId] = useState<string>(NONE);
+  const [formClientId, setFormClientId] = useState<string>(NONE);
   const [formMemberIds, setFormMemberIds] = useState<string[]>([]);
   const [memberPick, setMemberPick] = useState<string>(NONE);
 
@@ -156,6 +157,7 @@ export function ProjectsPage() {
   const [editPriority, setEditPriority] = useState<ProjectPriority>("medium");
   const [editBudgetAllocated, setEditBudgetAllocated] = useState<string>("0");
   const [editDueDate, setEditDueDate] = useState<string>("");
+  const [editClientId, setEditClientId] = useState<string>(NONE);
 
   const [managerOpen, setManagerOpen] = useState(false);
   const [managerTarget, setManagerTarget] = useState<any>(null);
@@ -253,6 +255,7 @@ export function ProjectsPage() {
     setFormBudgetAllocated("");
     setFormDueDate("");
     setFormManagerId(NONE);
+    setFormClientId(NONE);
     setFormMemberIds([]);
     setMemberPick(NONE);
   };
@@ -269,6 +272,12 @@ export function ProjectsPage() {
   const getManagerName = (project: any) => {
     if (project?.projectManager?.name) return project.projectManager.name;
     const found = usersList.find((u) => u._id === project?.projectManager);
+    return found?.name || "Not assigned";
+  };
+
+  const getClientName = (project: any) => {
+    if (project?.client?.name) return project.client.name;
+    const found = usersList.find((u) => u._id === project?.client);
     return found?.name || "Not assigned";
   };
 
@@ -351,6 +360,7 @@ export function ProjectsPage() {
         status: formStatus,
         priority: formPriority,
         projectManager: formManagerId === NONE ? null : formManagerId,
+        client: formClientId === NONE ? null : formClientId,
         members: formMemberIds,
         budgetAllocated: budgetNum,
         dueDate: formDueDate ? formDueDate : null,
@@ -387,6 +397,8 @@ export function ProjectsPage() {
     setEditPriority((project?.priority || "medium") as ProjectPriority);
     setEditBudgetAllocated(String(getBudgetAllocated(project)));
     setEditDueDate(project?.dueDate ? new Date(project.dueDate).toISOString().slice(0, 10) : "");
+    const currentClient = project?.client?._id || project?.client || NONE;
+    setEditClientId(currentClient ? String(currentClient) : NONE);
     setEditOpen(true);
   };
 
@@ -413,6 +425,7 @@ export function ProjectsPage() {
         priority: editPriority,
         budgetAllocated: budgetNum,
         dueDate: editDueDate ? editDueDate : null,
+        client: editClientId === NONE ? null : editClientId,
       };
 
       await api.patch(`/projects/${editTarget._id}`, payload);
@@ -596,6 +609,7 @@ export function ProjectsPage() {
 
   const managerOptionsAll = usersList.filter((u) => normalizeRole(u.role) === "project-manager");
   const memberOptions = usersList.filter((u) => normalizeRole(u.role) === "team-member");
+  const clientOptions = usersList.filter((u) => normalizeRole(u.role) === "client");
 
   const selectedMembersObjectsCreate = usersList.filter((u) => formMemberIds.includes(u._id));
   const selectedMembersObjectsAssign = usersList.filter((u) => membersPickIds.includes(u._id));
@@ -755,6 +769,23 @@ export function ProjectsPage() {
                           If you don’t select a manager, it defaults to you.
                         </div>
                       )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Client (optional)</Label>
+                      <Select value={formClientId} onValueChange={setFormClientId}>
+                        <SelectTrigger className={selectTriggerCompactClass}>
+                          <SelectValue placeholder="Select a client" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value={NONE}>No client</SelectItem>
+                          {clientOptions.map((u) => (
+                            <SelectItem key={u._id} value={u._id}>
+                              {u.name} ({u.email || u.role})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
 
                     <div className="space-y-2">
@@ -1047,6 +1078,10 @@ export function ProjectsPage() {
                   <div className="text-xs text-muted-foreground">
                     Manager: <span className="text-card-foreground">{getManagerName(project)}</span>
                   </div>
+
+                  <div className="text-xs text-muted-foreground">
+                    Client: <span className="text-card-foreground">{getClientName(project)}</span>
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -1100,7 +1135,8 @@ export function ProjectsPage() {
                         <Progress value={progress} className={progressHeight} />
                         <div className="text-xs text-muted-foreground">
                           {completedTasks} / {totalTasks} tasks completed • Manager:{" "}
-                          <span className="text-card-foreground">{getManagerName(project)}</span>
+                          <span className="text-card-foreground">{getManagerName(project)}</span> • Client:{" "}
+                          <span className="text-card-foreground">{getClientName(project)}</span>
                         </div>
                       </div>
                     </div>
@@ -1192,6 +1228,10 @@ export function ProjectsPage() {
             <div>
               <span className="text-muted-foreground">Manager: </span>
               {getManagerName(viewTarget)}
+            </div>
+            <div>
+              <span className="text-muted-foreground">Client: </span>
+              {getClientName(viewTarget)}
             </div>
             <div>
               <span className="text-muted-foreground">Members: </span>
@@ -1338,6 +1378,23 @@ export function ProjectsPage() {
                 onChange={(e) => setEditDueDate(e.target.value)}
                 className={selectTriggerCompactClass}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Client</Label>
+              <Select value={editClientId} onValueChange={setEditClientId}>
+                <SelectTrigger className={selectTriggerCompactClass}>
+                  <SelectValue placeholder="Select client" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE}>No client</SelectItem>
+                  {clientOptions.map((u) => (
+                    <SelectItem key={u._id} value={u._id}>
+                      {u.name} ({u.email || u.role})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
