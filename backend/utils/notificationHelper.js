@@ -61,7 +61,7 @@ const getProjectStakeholders = async (projectId) => {
 
   for (const membership of memberships) {
     const userId = membership?.user?._id ? String(membership.user._id) : String(membership?.user);
-    const role = normalizeRole(membership?.role || membership?.user?.role);
+    const role = normalizeRole(membership?.roleInProject || membership?.user?.role);
 
     if (!userId) continue;
 

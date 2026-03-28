@@ -3,6 +3,7 @@ const fs = require("fs");
 
 const Document = require("../models/Document");
 const ProjectMember = require("../models/ProjectMember");
+const Project = require("../models/Project");
 const { canUpload, canManage } = require("../middleware/docAccessMiddleware");
 const { logActivity } = require("../utils/activityHelper");
 const { createNotificationsForUsers } = require("../utils/notificationHelper");
@@ -13,17 +14,35 @@ const getUserId = (user) => String(user?._id || "");
 const getUserName = (user) =>
   user?.name || user?.fullName || user?.username || "A user";
 
+const uniqueIds = (ids = []) => [...new Set(ids.map(String).filter(Boolean))];
+
 const getProjectMemberUserIds = async (projectId, excludeUserId = null) => {
   const members = await ProjectMember.find({ project: projectId }).select("user");
 
-  return [
-    ...new Set(
-      members
-        .map((m) => String(m.user))
-        .filter(Boolean)
-        .filter((id) => id !== String(excludeUserId || ""))
-    ),
-  ];
+  return uniqueIds(
+    members
+      .map((m) => String(m.user))
+      .filter((id) => id !== String(excludeUserId || ""))
+  );
+};
+
+const getProjectNotificationUserIds = async (projectId, excludeUserId = null) => {
+  const memberIds = await getProjectMemberUserIds(projectId, excludeUserId);
+
+  const project = await Project.findById(projectId).select("createdBy projectManager client members");
+  if (!project) return memberIds;
+
+  const extraIds = [
+    project.createdBy,
+    project.projectManager,
+    project.client,
+    ...(Array.isArray(project.members) ? project.members : []),
+  ]
+    .map((id) => String(id || ""))
+    .filter(Boolean)
+    .filter((id) => id !== String(excludeUserId || ""));
+
+  return uniqueIds([...memberIds, ...extraIds]);
 };
 
 const notifyUsers = async ({
@@ -35,10 +54,12 @@ const notifyUsers = async ({
   relatedTask = null,
 }) => {
   try {
-    if (!Array.isArray(userIds) || userIds.length === 0) return;
+    const cleanedUserIds = uniqueIds(userIds);
+
+    if (!Array.isArray(cleanedUserIds) || cleanedUserIds.length === 0) return;
 
     await createNotificationsForUsers({
-      userIds,
+      userIds: cleanedUserIds,
       type,
       title,
       message,
@@ -150,7 +171,7 @@ exports.uploadDocument = async (req, res) => {
         },
       });
 
-      const recipientIds = await getProjectMemberUserIds(projectId, actorId);
+      const recipientIds = await getProjectNotificationUserIds(projectId, actorId);
 
       await notifyUsers({
         userIds: recipientIds,
@@ -206,7 +227,7 @@ exports.uploadDocument = async (req, res) => {
       },
     });
 
-    const recipientIds = await getProjectMemberUserIds(projectId, actorId);
+    const recipientIds = await getProjectNotificationUserIds(projectId, actorId);
 
     await notifyUsers({
       userIds: recipientIds,
@@ -241,15 +262,20 @@ exports.listDocuments = async (req, res) => {
     const q = {
       project: projectId,
       isDeleted: false,
-      ...(search
-        ? { title: { $regex: String(search).trim(), $options: "i" } }
-        : {}),
-      ...(visibility ? { visibility } : {}),
-      ...(status ? { status } : {}),
     };
+
+    if (search && String(search).trim()) {
+      q.title = { $regex: String(search).trim(), $options: "i" };
+    }
 
     if (req.projectRole === "client") {
       q.visibility = "client";
+    } else if (visibility && visibility !== "all") {
+      q.visibility = visibility;
+    }
+
+    if (status && status !== "all") {
+      q.status = status;
     }
 
     const docs = await Document.find(q)
@@ -359,7 +385,7 @@ exports.restoreVersion = async (req, res) => {
       },
     });
 
-    const recipientIds = await getProjectMemberUserIds(
+    const recipientIds = await getProjectNotificationUserIds(
       doc.project,
       getUserId(req.user)
     );
@@ -410,7 +436,11 @@ exports.shareDocument = async (req, res) => {
       user: { $in: userIds },
     }).select("user");
 
-    const allowedUserIds = [...new Set(members.map((m) => String(m.user)))];
+    const allowedUserIds = uniqueIds(members.map((m) => String(m.user)));
+
+    if (allowedUserIds.length === 0) {
+      return res.status(400).json({ message: "No valid project members selected for sharing" });
+    }
 
     doc.sharedWith = Array.from(
       new Set([...(doc.sharedWith || []).map(String), ...allowedUserIds])
@@ -433,7 +463,7 @@ exports.shareDocument = async (req, res) => {
     });
 
     await notifyUsers({
-      userIds: allowedUserIds,
+      userIds: allowedUserIds.filter((id) => id !== getUserId(req.user)),
       type: "document",
       title: "Document shared with you",
       message: `${getUserName(req.user)} shared "${doc.title}" with you`,
@@ -508,7 +538,7 @@ exports.deleteDocument = async (req, res) => {
       },
     });
 
-    const recipientIds = await getProjectMemberUserIds(
+    const recipientIds = await getProjectNotificationUserIds(
       doc.project,
       getUserId(req.user)
     );

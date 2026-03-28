@@ -92,10 +92,12 @@ function fmtBytes(n: number) {
   const units = ["B", "KB", "MB", "GB"];
   let idx = 0;
   let val = n;
+
   while (val >= 1024 && idx < units.length - 1) {
     val /= 1024;
     idx++;
   }
+
   return `${val.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
 }
 
@@ -120,40 +122,50 @@ function fmtDateTimeByPreference(s?: string, dateFormat: DateFormatPreference = 
 
   const datePart = formatDateByPreference(s, dateFormat);
   const timePart = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
   return `${datePart} ${timePart}`;
 }
 
 function docIconByMime(mime?: string, title?: string) {
   const t = (title || "").toLowerCase();
   const m = (mime || "").toLowerCase();
+
   if (m.includes("pdf") || t.endsWith(".pdf")) return { Icon: FileText, color: "text-red-600" };
-  if (m.includes("image") || t.match(/\.(png|jpg|jpeg|webp|gif)$/)) return { Icon: ImageIcon, color: "text-purple-600" };
+  if (m.includes("image") || t.match(/\.(png|jpg|jpeg|webp|gif)$/)) {
+    return { Icon: ImageIcon, color: "text-purple-600" };
+  }
   if (t.match(/\.(sql|db)$/)) return { Icon: File, color: "text-green-600" };
   if (t.match(/\.(zip|rar|7z|tar|gz)$/)) return { Icon: Folder, color: "text-yellow-600" };
   if (t.match(/\.(doc|docx)$/)) return { Icon: FileText, color: "text-blue-600" };
+
   return { Icon: File, color: "text-muted-foreground" };
 }
 
 function normalizeRole(role?: string): SystemRole {
   const r = String(role || "").trim().toLowerCase();
+
   if (r === "admin") return "admin";
   if (["project-manager", "projectmanager", "project manager", "pm"].includes(r)) return "project-manager";
   if (["team-member", "teammember", "team member", "member"].includes(r)) return "team-member";
   if (r === "client") return "client";
+
   return r;
 }
 
 function canUpload(projectRole: ProjectRole) {
   return projectRole === "admin" || projectRole === "project-manager" || projectRole === "team-member";
 }
+
 function canManage(projectRole: ProjectRole) {
   return projectRole === "admin" || projectRole === "project-manager";
 }
+
 function canShare(projectRole: ProjectRole) {
   return canManage(projectRole);
 }
+
 function canRestore(projectRole: ProjectRole) {
-  return canManage(projectRole);
+  return projectRole === "admin" || projectRole === "project-manager";
 }
 
 export function DocumentsPage() {
@@ -190,6 +202,8 @@ export function DocumentsPage() {
 
   const systemRole = normalizeRole(me?.role);
   const isAdmin = systemRole === "admin";
+  const isClientUser = systemRole === "client";
+  const isProjectManagerUser = systemRole === "project-manager";
 
   const [projectRoles, setProjectRoles] = useState<Record<string, ProjectRole>>({});
 
@@ -216,26 +230,43 @@ export function DocumentsPage() {
 
   const getProjectRole = (projectId: string): ProjectRole => {
     if (isAdmin) return "admin";
-    return projectRoles[projectId] ?? null;
+
+    const directRole = projectRoles[projectId];
+    if (directRole) return directRole;
+
+    const project = projects.find((p) => p._id === projectId);
+    if (project?.roleInProject) return project.roleInProject;
+
+    if (isProjectManagerUser) return "project-manager";
+
+    return null;
   };
 
   useEffect(() => {
     (async () => {
       setLoadingProjects(true);
       try {
-        const [projRes, rolesRes] = await Promise.allSettled([api.get("/projects"), api.get("/projects/roles")]);
+        const [projRes, rolesRes] = await Promise.allSettled([
+          api.get("/projects"),
+          api.get("/projects/roles"),
+        ]);
 
         if (projRes.status === "fulfilled") {
           const list: any[] = projRes.value.data?.projects || projRes.value.data || [];
+
           const normalized: Project[] = list.map((p) => ({
             _id: p._id,
             name: p.name || p.title || "Untitled",
-            roleInProject: p.roleInProject ? (normalizeRole(p.roleInProject) as any) : undefined,
+            roleInProject: p.roleInProject ? (normalizeRole(p.roleInProject) as ProjectRole) : undefined,
           }));
+
           setProjects(normalized);
 
           if (!uploadProjectId && normalized.length > 0) {
-            const firstAllowed = normalized.find((p) => canUpload(p.roleInProject ?? null));
+            const firstAllowed = normalized.find((p) => {
+              const role = p.roleInProject ?? (isProjectManagerUser ? "project-manager" : null);
+              return canUpload(role);
+            });
             setUploadProjectId(firstAllowed?._id || normalized[0]._id);
           }
         }
@@ -243,20 +274,25 @@ export function DocumentsPage() {
         if (rolesRes.status === "fulfilled") {
           const map = rolesRes.value.data?.roles || {};
           const normalizedRoles: Record<string, ProjectRole> = {};
-          for (const k of Object.keys(map)) normalizedRoles[k] = normalizeRole(map[k]) as any;
+
+          for (const k of Object.keys(map)) {
+            normalizedRoles[k] = normalizeRole(map[k]) as ProjectRole;
+          }
+
           setProjectRoles(normalizedRoles);
         }
-      } catch (e) {
-        console.error(e);
+      } catch (error) {
+        console.error(error);
       } finally {
         setLoadingProjects(false);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin]);
+  }, [isAdmin, isProjectManagerUser]);
 
   const fetchDocuments = async () => {
     setLoadingDocs(true);
+
     try {
       if (!projects.length) {
         setDocuments([]);
@@ -275,6 +311,7 @@ export function DocumentsPage() {
       }
 
       const all: DocumentRow[] = [];
+
       for (const p of projects) {
         try {
           const res = await api.get(`/projects/${p._id}/documents`, {
@@ -286,7 +323,11 @@ export function DocumentsPage() {
         }
       }
 
-      all.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
+      all.sort(
+        (a, b) =>
+          new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()
+      );
+
       setDocuments(all);
     } finally {
       setLoadingDocs(false);
@@ -295,19 +336,26 @@ export function DocumentsPage() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      fetchDocuments().catch((e) => {
-        console.error(e);
+      fetchDocuments().catch((error) => {
+        console.error(error);
         toast.error("Failed to load documents");
       });
     }, 250);
+
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery, selectedProjectId, selectedVisibility, selectedStatus, projects.length]);
 
   const handleUpload = async () => {
     if (!uploadProjectId) return toast.error("Select a project");
-    const role = getProjectRole(uploadProjectId);
+
+    const role =
+      getProjectRole(uploadProjectId) ||
+      projects.find((p) => p._id === uploadProjectId)?.roleInProject ||
+      null;
+
     if (!canUpload(role)) return toast.error("You don't have permission to upload to this project");
+
     if (!uploadFile) return toast.error("Select a file");
     if (!uploadTitle.trim()) return toast.error("Enter a document title");
 
@@ -333,9 +381,9 @@ export function DocumentsPage() {
       setUploadChangeNote("");
 
       await fetchDocuments();
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e?.response?.data?.message || "Upload failed");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.response?.data?.message || "Upload failed");
     }
   };
 
@@ -343,12 +391,13 @@ export function DocumentsPage() {
     setActiveDoc(doc);
     setVersionsOpen(true);
     setLoadingVersions(true);
+
     try {
       const res = await api.get(`/documents/${doc._id}/versions`);
       setActiveDocVersions(res.data?.versions || []);
       setActiveDocCurrent(res.data?.currentVersion || doc.currentVersion || 1);
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
       toast.error("Failed to load versions");
       setVersionsOpen(false);
     } finally {
@@ -356,19 +405,31 @@ export function DocumentsPage() {
     }
   };
 
-  const restoreVersion = async (docId: string, version: number) => {
-    if (!activeDoc) return;
-    const role = getProjectRole(activeDoc.project);
-    if (!canRestore(role)) return toast.error("Only Admin/PM can restore versions");
+  const restoreVersion = async (docId: string, version: number, doc?: DocumentRow) => {
+    const targetDoc = doc || activeDoc;
+    if (!targetDoc) return;
+
+    const role =
+      getProjectRole(targetDoc.project) ||
+      projects.find((p) => p._id === targetDoc.project)?.roleInProject ||
+      null;
+
+    if (!canRestore(role)) {
+      return toast.error("Only Admin / Project Manager can restore versions");
+    }
 
     try {
       await api.post(`/documents/${docId}/restore/${version}`);
       toast.success(`Restored to v${version}`);
-      await openVersions(activeDoc);
+
+      if (activeDoc?._id === targetDoc._id) {
+        await openVersions(targetDoc);
+      }
+
       await fetchDocuments();
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e?.response?.data?.message || "Restore failed");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.response?.data?.message || "Restore failed");
     }
   };
 
@@ -380,8 +441,13 @@ export function DocumentsPage() {
 
   const shareDoc = async () => {
     if (!activeDoc) return;
-    const role = getProjectRole(activeDoc.project);
-    if (!canShare(role)) return toast.error("Only Admin/PM can share documents");
+
+    const role =
+      getProjectRole(activeDoc.project) ||
+      projects.find((p) => p._id === activeDoc.project)?.roleInProject ||
+      null;
+
+    if (!canShare(role)) return toast.error("Only Admin / PM can share documents");
 
     const userIds = shareUserIdsText
       .split(",")
@@ -395,9 +461,9 @@ export function DocumentsPage() {
       toast.success("Document shared!");
       setShareOpen(false);
       await fetchDocuments();
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e?.response?.data?.message || "Share failed");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.response?.data?.message || "Share failed");
     }
   };
 
@@ -416,14 +482,17 @@ export function DocumentsPage() {
       a.click();
       a.remove();
       window.URL.revokeObjectURL(blobUrl);
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e?.response?.data?.message || "Download failed");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.response?.data?.message || "Download failed");
     }
   };
 
   const deleteDoc = async (doc: DocumentRow) => {
-    const projectRole = getProjectRole(doc.project);
+    const projectRole =
+      getProjectRole(doc.project) ||
+      projects.find((p) => p._id === doc.project)?.roleInProject ||
+      null;
 
     if (!canManage(projectRole)) {
       toast.error("Only Admin / Project Manager can delete");
@@ -444,21 +513,27 @@ export function DocumentsPage() {
         setActiveDoc(null);
         setActiveDocVersions([]);
       }
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e?.response?.data?.message || "Delete failed");
+    } catch (error: any) {
+      console.error(error);
+      toast.error(error?.response?.data?.message || "Delete failed");
     }
   };
 
-  const totalVersions = useMemo(() => documents.reduce((sum, d) => sum + (d.versions?.length || 0), 0), [documents]);
+  const totalVersions = useMemo(() => {
+    return documents.reduce((sum, d) => sum + (d.versions?.length || 0), 0);
+  }, [documents]);
 
   const totalStorageBytes = useMemo(() => {
     let sum = 0;
+
     for (const d of documents) {
       const current =
-        d.versions?.find((v) => v.version === d.currentVersion) || d.versions?.[d.versions.length - 1];
+        d.versions?.find((v) => v.version === d.currentVersion) ||
+        d.versions?.[d.versions.length - 1];
+
       if (current?.size) sum += current.size;
     }
+
     return sum;
   }, [documents]);
 
@@ -469,25 +544,36 @@ export function DocumentsPage() {
   const filteredDocuments = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return documents;
+
     return documents.filter((d) => {
       const t = (d.title || "").toLowerCase();
       const v = (d.visibility || "").toLowerCase();
       const s = (d.status || "").toLowerCase();
+
       return t.includes(q) || v.includes(q) || s.includes(q);
     });
   }, [documents, searchQuery]);
 
   const recentVersions = useMemo(() => {
     const items: Array<{ doc: DocumentRow; v: DocVersion }> = [];
+
     for (const d of documents) {
       const last = d.versions?.[d.versions.length - 1];
       if (last) items.push({ doc: d, v: last });
     }
-    items.sort((a, b) => new Date(b.v.uploadedAt || 0).getTime() - new Date(a.v.uploadedAt || 0).getTime());
+
+    items.sort(
+      (a, b) =>
+        new Date(b.v.uploadedAt || 0).getTime() - new Date(a.v.uploadedAt || 0).getTime()
+    );
+
     return items.slice(0, 10);
   }, [documents]);
 
-  const uploadEnabled = projects.some((p) => canUpload(getProjectRole(p._id) || p.roleInProject || null));
+  const uploadEnabled = projects.some((p) => {
+    const role = getProjectRole(p._id) || p.roleInProject || null;
+    return canUpload(role);
+  });
 
   return (
     <div className="p-6 space-y-6 bg-background text-foreground">
@@ -495,134 +581,153 @@ export function DocumentsPage() {
         <div>
           <h1 className="text-3xl font-semibold mb-2">Documents</h1>
           <p className="text-muted-foreground">Manage files with version control and secure sharing</p>
+
           {loadingProjects ? (
             <p className="text-xs text-muted-foreground mt-1">Loading your projects…</p>
           ) : !projects.length ? (
             <p className="text-xs text-red-600 mt-1">
-              No accessible projects found for your account. (Fix backend: GET /api/projects must return member projects)
+              No accessible projects found for your account.
             </p>
           ) : null}
         </div>
 
-        <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
-          <DialogTrigger asChild>
-            <Button disabled={!uploadEnabled}>
-              <Upload className="w-4 h-4 mr-2" />
-              Upload Document
-            </Button>
-          </DialogTrigger>
-
-          <DialogContent className="border-border bg-card text-card-foreground">
-            <DialogHeader>
-              <DialogTitle>Upload New Document</DialogTitle>
-              <DialogDescription>Add files to your project with version tracking</DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="document-file">Select File</Label>
-                <Input id="document-file" type="file" onChange={(e) => setUploadFile(e.target.files?.[0] || null)} />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="document-project">Project</Label>
-                <Select value={uploadProjectId} onValueChange={(v) => setUploadProjectId(v)}>
-                  <SelectTrigger id="document-project">
-                    <SelectValue placeholder="Select project" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {projects.map((p) => {
-                      const pr = getProjectRole(p._id) || p.roleInProject || null;
-                      const allowed = canUpload(pr);
-                      return (
-                        <SelectItem key={p._id} value={p._id} disabled={!allowed}>
-                          {p.name} {!allowed ? " (No upload access)" : ""}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-                {uploadProjectId ? (
-                  <p className="text-xs text-muted-foreground">
-                    Your role in this project:{" "}
-                    <span className="font-medium text-card-foreground">
-                      {String(getProjectRole(uploadProjectId) || projects.find((p) => p._id === uploadProjectId)?.roleInProject || "no access")}
-                    </span>
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="document-title">Title</Label>
-                <Input
-                  id="document-title"
-                  placeholder="e.g., API Documentation"
-                  value={uploadTitle}
-                  onChange={(e) => setUploadTitle(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Tip: If the same title exists in the project, this will upload as a <b>new version</b>.
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="document-description">Description (Optional)</Label>
-                <Input
-                  id="document-description"
-                  placeholder="What's in this document?"
-                  value={uploadDescription}
-                  onChange={(e) => setUploadDescription(e.target.value)}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>Visibility</Label>
-                  <Select value={uploadVisibility} onValueChange={(v: any) => setUploadVisibility(v)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select visibility" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="internal">Internal (team only)</SelectItem>
-                      <SelectItem value="client">Client-visible</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Status</Label>
-                  <Select value={uploadStatus} onValueChange={(v: any) => setUploadStatus(v)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="draft">Draft</SelectItem>
-                      <SelectItem value="in-review">In Review</SelectItem>
-                      <SelectItem value="approved">Approved</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="document-changenote">Change Note (Optional)</Label>
-                <Input
-                  id="document-changenote"
-                  placeholder="e.g., Updated milestone dates"
-                  value={uploadChangeNote}
-                  onChange={(e) => setUploadChangeNote(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsUploadDialogOpen(false)}>
-                Cancel
+        {!isClientUser && (
+          <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
+            <DialogTrigger asChild>
+              <Button disabled={!uploadEnabled}>
+                <Upload className="w-4 h-4 mr-2" />
+                Upload Document
               </Button>
-              <Button onClick={handleUpload}>Upload</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+
+            <DialogContent className="border-border bg-card text-card-foreground">
+              <DialogHeader>
+                <DialogTitle>Upload New Document</DialogTitle>
+                <DialogDescription>Add files to your project with version tracking</DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="document-file">Select File</Label>
+                  <Input
+                    id="document-file"
+                    type="file"
+                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="document-project">Project</Label>
+                  <Select value={uploadProjectId} onValueChange={(v) => setUploadProjectId(v)}>
+                    <SelectTrigger id="document-project">
+                      <SelectValue placeholder="Select project" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projects.map((p) => {
+                        const pr = getProjectRole(p._id) || p.roleInProject || null;
+                        const allowed = canUpload(pr);
+
+                        return (
+                          <SelectItem key={p._id} value={p._id} disabled={!allowed}>
+                            {p.name} {!allowed ? " (No upload access)" : ""}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+
+                  {uploadProjectId ? (
+                    <p className="text-xs text-muted-foreground">
+                      Your role in this project:{" "}
+                      <span className="font-medium text-card-foreground">
+                        {String(
+                          getProjectRole(uploadProjectId) ||
+                            projects.find((p) => p._id === uploadProjectId)?.roleInProject ||
+                            "no access"
+                        )}
+                      </span>
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="document-title">Title</Label>
+                  <Input
+                    id="document-title"
+                    placeholder="e.g., API Documentation"
+                    value={uploadTitle}
+                    onChange={(e) => setUploadTitle(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Tip: If the same title exists in the project, this will upload as a <b>new version</b>.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="document-description">Description (Optional)</Label>
+                  <Input
+                    id="document-description"
+                    placeholder="What's in this document?"
+                    value={uploadDescription}
+                    onChange={(e) => setUploadDescription(e.target.value)}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Visibility</Label>
+                    <Select
+                      value={uploadVisibility}
+                      onValueChange={(v: "internal" | "client") => setUploadVisibility(v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select visibility" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="internal">Internal (team only)</SelectItem>
+                        <SelectItem value="client">Client-visible</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Status</Label>
+                    <Select
+                      value={uploadStatus}
+                      onValueChange={(v: "draft" | "in-review" | "approved") => setUploadStatus(v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="in-review">In Review</SelectItem>
+                        <SelectItem value="approved">Approved</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="document-changenote">Change Note (Optional)</Label>
+                  <Input
+                    id="document-changenote"
+                    placeholder="e.g., Updated milestone dates"
+                    value={uploadChangeNote}
+                    onChange={(e) => setUploadChangeNote(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsUploadDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleUpload}>Upload</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -754,11 +859,13 @@ export function DocumentsPage() {
 
                     const { Icon, color } = docIconByMime(current?.mimeType, doc.title);
                     const projectName = projects.find((p) => p._id === doc.project)?.name || "Project";
-                    const projectRole = getProjectRole(doc.project);
+                    const projectRole =
+                      getProjectRole(doc.project) ||
+                      projects.find((p) => p._id === doc.project)?.roleInProject ||
+                      null;
 
                     const showShare = canShare(projectRole);
                     const showDelete = canManage(projectRole);
-                    const isClient = normalizeRole(me?.role) === "client";
 
                     return (
                       <div
@@ -826,7 +933,7 @@ export function DocumentsPage() {
                             <Eye className="w-4 h-4" />
                           </Button>
 
-                          {showShare && !isClient ? (
+                          {showShare && !isClientUser ? (
                             <Button variant="ghost" size="icon" title="Share" onClick={() => openShare(doc)}>
                               <Share2 className="w-4 h-4" />
                             </Button>
@@ -864,7 +971,10 @@ export function DocumentsPage() {
                 <div className="space-y-4">
                   {recentVersions.map(({ doc, v }) => {
                     const projectName = projects.find((p) => p._id === doc.project)?.name || "Project";
-                    const projectRole = getProjectRole(doc.project);
+                    const projectRole =
+                      getProjectRole(doc.project) ||
+                      projects.find((p) => p._id === doc.project)?.roleInProject ||
+                      null;
 
                     return (
                       <div
@@ -899,11 +1009,12 @@ export function DocumentsPage() {
                           <Button variant="outline" size="sm" onClick={() => openVersions(doc)}>
                             View
                           </Button>
+
                           <Button
                             variant="outline"
                             size="sm"
                             disabled={!canRestore(projectRole)}
-                            onClick={() => restoreVersion(doc._id, v.version)}
+                            onClick={() => restoreVersion(doc._id, v.version, doc)}
                           >
                             <RotateCcw className="w-4 h-4 mr-1" />
                             Restore
@@ -1020,7 +1131,11 @@ export function DocumentsPage() {
                 .sort((a, b) => b.version - a.version)
                 .map((v) => {
                   const isCurrent = v.version === activeDocCurrent;
-                  const projectRole = activeDoc ? getProjectRole(activeDoc.project) : null;
+                  const projectRole = activeDoc
+                    ? getProjectRole(activeDoc.project) ||
+                      projects.find((p) => p._id === activeDoc.project)?.roleInProject ||
+                      null
+                    : null;
 
                   return (
                     <div key={v.version} className="flex items-start justify-between p-3 border border-border rounded-lg">
@@ -1030,6 +1145,7 @@ export function DocumentsPage() {
                           {isCurrent ? <Badge variant="secondary">Current</Badge> : null}
                           <span className="text-sm text-card-foreground">{v.fileName}</span>
                         </div>
+
                         <div className="text-xs text-muted-foreground mt-1 flex gap-3 flex-wrap">
                           <span>{fmtBytes(v.size)}</span>
                           <span>•</span>
@@ -1037,7 +1153,10 @@ export function DocumentsPage() {
                           <span>•</span>
                           <span>{fmtDateTimeByPreference(v.uploadedAt, dateFormat)}</span>
                         </div>
-                        {v.changeNote?.trim() ? <p className="text-sm text-muted-foreground mt-2">{v.changeNote}</p> : null}
+
+                        {v.changeNote?.trim() ? (
+                          <p className="text-sm text-muted-foreground mt-2">{v.changeNote}</p>
+                        ) : null}
                       </div>
 
                       <div className="flex gap-2">
@@ -1050,7 +1169,7 @@ export function DocumentsPage() {
                           variant="outline"
                           size="sm"
                           disabled={isCurrent || !canRestore(projectRole)}
-                          onClick={() => activeDoc && restoreVersion(activeDoc._id, v.version)}
+                          onClick={() => activeDoc && restoreVersion(activeDoc._id, v.version, activeDoc)}
                         >
                           <RotateCcw className="w-4 h-4 mr-1" />
                           Restore
@@ -1063,7 +1182,7 @@ export function DocumentsPage() {
           )}
 
           <DialogFooter>
-            {activeDoc && canManage(getProjectRole(activeDoc.project)) ? (
+            {activeDoc && canManage(getProjectRole(activeDoc.project) || projects.find((p) => p._id === activeDoc.project)?.roleInProject || null) ? (
               <Button variant="destructive" onClick={() => deleteDoc(activeDoc)}>
                 <Trash2 className="w-4 h-4 mr-2" />
                 Delete Document

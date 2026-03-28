@@ -11,6 +11,7 @@ import {
   Clock3,
   Activity,
   CheckCheck,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -19,13 +20,18 @@ type NotificationType =
   | "task_status_changed"
   | "project_created"
   | "deadline_approaching"
-  | "activity_added";
+  | "activity_added"
+  | "document"
+  | "document_uploaded"
+  | "document_shared"
+  | "document_deleted"
+  | "document_restored";
 
 type NotificationItem = {
   _id: string;
   title: string;
   message: string;
-  type: NotificationType;
+  type: NotificationType | string;
   isRead: boolean;
   createdAt: string;
   relatedProject?: {
@@ -52,9 +58,14 @@ const filterOptions: Array<"all" | NotificationType> = [
   "project_created",
   "deadline_approaching",
   "activity_added",
+  "document",
+  "document_uploaded",
+  "document_shared",
+  "document_deleted",
+  "document_restored",
 ];
 
-const getTypeIcon = (type: NotificationType) => {
+const getTypeIcon = (type: NotificationType | string) => {
   switch (type) {
     case "task_assigned":
       return <CheckCircle2 className="h-4 w-4" />;
@@ -66,12 +77,18 @@ const getTypeIcon = (type: NotificationType) => {
       return <Clock3 className="h-4 w-4" />;
     case "activity_added":
       return <Bell className="h-4 w-4" />;
+    case "document":
+    case "document_uploaded":
+    case "document_shared":
+    case "document_deleted":
+    case "document_restored":
+      return <FileText className="h-4 w-4" />;
     default:
       return <Bell className="h-4 w-4" />;
   }
 };
 
-const getTypeLabel = (type: NotificationType) => {
+const getTypeLabel = (type: NotificationType | string) => {
   switch (type) {
     case "task_assigned":
       return "Task Assigned";
@@ -83,6 +100,16 @@ const getTypeLabel = (type: NotificationType) => {
       return "Deadline";
     case "activity_added":
       return "Activity";
+    case "document":
+      return "Document";
+    case "document_uploaded":
+      return "Document Uploaded";
+    case "document_shared":
+      return "Document Shared";
+    case "document_deleted":
+      return "Document Deleted";
+    case "document_restored":
+      return "Document Restored";
     default:
       return "Notification";
   }
@@ -140,6 +167,18 @@ export function NotificationsPage() {
 
   const filteredNotifications = useMemo(() => {
     if (typeFilter === "all") return notifications;
+
+    if (typeFilter === "document") {
+      return notifications.filter(
+        (n) =>
+          n.type === "document" ||
+          n.type === "document_uploaded" ||
+          n.type === "document_shared" ||
+          n.type === "document_deleted" ||
+          n.type === "document_restored"
+      );
+    }
+
     return notifications.filter((n) => n.type === typeFilter);
   }, [notifications, typeFilter]);
 

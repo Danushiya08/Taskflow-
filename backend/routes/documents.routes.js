@@ -2,7 +2,7 @@ const router = require("express").Router();
 
 const authMiddleware = require("../middleware/authMiddleware");
 const upload = require("../middleware/uploadMiddleware");
-const { requireProjectAccess, requireDocumentAccess } = require("../middleware/docAccessMiddleware");
+const { requireProjectAccess, requireDocumentAccess,  requireRestorePermission } = require("../middleware/docAccessMiddleware");
 
 const ctrl = require("../controllers/documentsController");
 
@@ -24,7 +24,7 @@ router.get(
 
 // Document-scoped routes
 router.get("/documents/:id/versions", authMiddleware, requireDocumentAccess, ctrl.getVersions);
-router.post("/documents/:id/restore/:version", authMiddleware, requireDocumentAccess, ctrl.restoreVersion);
+router.post("/documents/:id/restore/:version", authMiddleware, requireDocumentAccess, requireRestorePermission, ctrl.restoreVersion);
 router.post("/documents/:id/share", authMiddleware, requireDocumentAccess, ctrl.shareDocument);
 router.get("/documents/:id/download", authMiddleware, requireDocumentAccess, ctrl.downloadCurrent);
 router.delete("/documents/:id", authMiddleware, requireDocumentAccess, ctrl.deleteDocument);

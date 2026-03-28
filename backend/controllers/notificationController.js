@@ -1,15 +1,23 @@
 const mongoose = require("mongoose");
 const Notification = require("../models/Notification");
 
+const getUserId = (user) => String(user?._id || user?.id || "");
+
 const getNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find({ user: req.user._id })
+    const userId = getUserId(req.user);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const notifications = await Notification.find({ user: userId })
       .populate("relatedProject", "name")
       .populate("relatedTask", "title status dueDate")
       .sort({ createdAt: -1 });
 
     const unreadCount = await Notification.countDocuments({
-      user: req.user._id,
+      user: userId,
       isRead: false,
     });
 
@@ -26,13 +34,18 @@ const getNotifications = async (req, res) => {
 const markNotificationAsRead = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = getUserId(req.user);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Invalid notification id" });
     }
 
     const notification = await Notification.findOneAndUpdate(
-      { _id: id, user: req.user._id },
+      { _id: id, user: userId },
       { isRead: true },
       { new: true }
     )
@@ -55,8 +68,14 @@ const markNotificationAsRead = async (req, res) => {
 
 const markAllNotificationsAsRead = async (req, res) => {
   try {
+    const userId = getUserId(req.user);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     await Notification.updateMany(
-      { user: req.user._id, isRead: false },
+      { user: userId, isRead: false },
       { $set: { isRead: true } }
     );
 
