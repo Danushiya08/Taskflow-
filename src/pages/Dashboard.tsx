@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { SmartAlertsCard } from "@/components/SmartAlertsCard";
 import {
   TrendingUp,
   TrendingDown,
@@ -292,6 +293,8 @@ export function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <SmartAlertsCard tasks={allTasks} projects={recentProjects} />
 
       <ProjectAssistant
         role="admin"

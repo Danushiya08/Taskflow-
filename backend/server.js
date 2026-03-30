@@ -2,6 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
+const cron = require("node-cron");
 require("dotenv").config();
 
 const authRoutes = require("./routes/auth.routes");
@@ -22,6 +23,8 @@ const riskRoutes = require("./routes/risk.routes");
 const settingsRoutes = require("./routes/settings.routes");
 const activityRoutes = require("./routes/activity.routes");
 const notificationRoutes = require("./routes/notification.routes");
+const alertsRoutes = require("./routes/alerts.routes");
+const { runAlertChecks } = require("./utils/alertHelper");
 
 const app = express();
 
@@ -106,6 +109,7 @@ app.use("/api/risks", riskRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/activity", activityRoutes);
+app.use("/api", alertsRoutes);
 
 /**
  * 404 handler (for unknown routes)
@@ -131,6 +135,22 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅ MongoDB connected");
+
+     /**
+     * Smart Alerts Cron Job
+     * TEST MODE: runs every minute
+     * Later change to: "0 8 * * *" for every day at 8 AM
+     */
+    cron.schedule("* * * * *", async () => {
+      console.log("⏰ Running alert checks...");
+      try {
+        await runAlertChecks();
+        console.log("✅ Alert checks completed");
+      } catch (err) {
+        console.error("❌ Alert cron failed:", err.message);
+      }
+    });
+    
     app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
   })
   .catch((err) => {

@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { SmartAlertsCard } from "@/components/SmartAlertsCard";
 import {
   CheckCircle2,
   Clock,
@@ -346,6 +347,8 @@ export function ClientDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <SmartAlertsCard tasks={[]} projects={myProjects} />
 
       <ProjectAssistant
         role="client"
