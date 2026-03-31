@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
 
-const socket = io("http://localhost:5000", {
+const socket = io("https://taskflow-production-8484.up.railway.app", {
   withCredentials: true,
   transports: ["websocket", "polling"],
 
