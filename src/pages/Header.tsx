@@ -3,6 +3,7 @@ import { Bell, Search, ChevronDown, LogOut, Settings, User } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import api from "@/lib/api";
+import socket from "@/lib/socket";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -92,6 +93,28 @@ export function Header({ currentUser, onLogout }: HeaderProps) {
 
   useEffect(() => {
     loadNotifications();
+  }, []);
+
+  useEffect(() => {
+    const handleLiveNotification = (notification: NotificationItem) => {
+      setNotifications((prev) => {
+        const exists = prev.some((item) => item._id === notification._id);
+        if (exists) return prev;
+
+        return [notification, ...prev].sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      });
+
+      setUnreadCount((prev) => prev + 1);
+    };
+
+    socket.on("new_notification", handleLiveNotification);
+
+    return () => {
+      socket.off("new_notification", handleLiveNotification);
+    };
   }, []);
 
   return (

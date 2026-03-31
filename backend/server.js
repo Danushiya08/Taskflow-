@@ -3,6 +3,8 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const rateLimit = require("express-rate-limit");
 const cron = require("node-cron");
+const http = require("http");
+const { Server } = require("socket.io");
 require("dotenv").config();
 
 const authRoutes = require("./routes/auth.routes");
@@ -27,6 +29,42 @@ const alertsRoutes = require("./routes/alerts.routes");
 const { runAlertChecks } = require("./utils/alertHelper");
 
 const app = express();
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:5173", 
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    credentials: true,
+  },
+});
+
+// store connected users
+const userSocketMap = {};
+
+/**
+ * Socket connection
+ */
+io.on("connection", (socket) => {
+  console.log("⚡ User connected:", socket.id);
+
+  socket.on("register", (userId) => {
+    if (!userId) return;
+
+    const room = String(userId);
+    socket.join(room);
+
+    console.log("📩 Register event received:", userId);
+    console.log("✅ User joined room:", room, "socket:", socket.id);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("❌ Disconnected:", socket.id);
+  });
+});
+
+// make socket available in controllers/routes/helpers
+app.set("io", io);
 
 /**
  * Railway / proxies:
@@ -136,7 +174,7 @@ mongoose
   .then(() => {
     console.log("✅ MongoDB connected");
 
-     /**
+    /**
      * Smart Alerts Cron Job
      * TEST MODE: runs every minute
      * Later change to: "0 8 * * *" for every day at 8 AM
@@ -150,8 +188,10 @@ mongoose
         console.error("❌ Alert cron failed:", err.message);
       }
     });
-    
-    app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
+    server.listen(PORT, () => {
+      console.log(`✅ Server running on port ${PORT}`);
+    });
   })
   .catch((err) => {
     console.error("❌ MongoDB error:", err.message);

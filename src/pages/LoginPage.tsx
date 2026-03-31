@@ -23,7 +23,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Frontend validation (optional but helpful)
     if (!loginEmail.trim() || !loginPassword.trim()) {
       toast.error("Please enter email and password");
       return;
@@ -35,10 +34,19 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         password: loginPassword,
       });
 
-      toast.success(res.data.message || "Login successful");
-      localStorage.setItem("token", res.data.token);
-      localStorage.setItem("user", JSON.stringify(res.data.user));
-      onLogin(res.data.user);
+      const token = res.data?.token;
+      const user = res.data?.user;
+
+      if (!token || !user) {
+        toast.error("Login response is missing token or user");
+        console.error("Login response:", res.data);
+        return;
+      }
+
+      toast.success(res.data?.message || "Login successful");
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+      onLogin(user);
     } catch (err: any) {
       const msg =
         err?.response?.data?.message ||
@@ -60,16 +68,25 @@ export function LoginPage({ onLogin }: LoginPageProps) {
         role: registerRole,
       });
 
-      toast.success(res.data.message || "Registration successful");
+      toast.success(res.data?.message || "Registration successful");
 
-      // optional auto-login
       const loginRes = await api.post("/auth/login", {
-        email: registerEmail,
+        email: registerEmail.trim(),
         password: registerPassword,
       });
 
-      localStorage.setItem("token", loginRes.data.token);
-      onLogin(loginRes.data.user);
+      const token = loginRes.data?.token;
+      const user = loginRes.data?.user;
+
+      if (!token || !user) {
+        toast.error("Auto-login response is missing token or user");
+        console.error("Auto-login response:", loginRes.data);
+        return;
+      }
+
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+      onLogin(user);
     } catch (err: any) {
       toast.error(err?.response?.data?.message || "Registration failed");
     }
@@ -78,7 +95,6 @@ export function LoginPage({ onLogin }: LoginPageProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-4">
       <div className="w-full max-w-6xl grid md:grid-cols-2 gap-8 items-center">
-        {/* Left side */}
         <div className="text-center md:text-left space-y-6">
           <div className="flex items-center justify-center md:justify-start gap-3">
             <div className="bg-gradient-to-br from-blue-600 to-indigo-600 p-3 rounded-xl">
@@ -88,7 +104,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
           </div>
 
           <h2 className="text-3xl text-gray-900">
-            Project Management,<br />Simplified & Intelligent
+            Project Management,
+            <br />
+            Simplified & Intelligent
           </h2>
 
           <p className="text-gray-600">
@@ -100,32 +118,40 @@ export function LoginPage({ onLogin }: LoginPageProps) {
               <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
               <div>
                 <h4 className="text-gray-900">AI-Powered Task Management</h4>
-                <p className="text-sm text-gray-600">Smart predictions for delays, workload balancing, and automated reports</p>
+                <p className="text-sm text-gray-600">
+                  Smart predictions for delays, workload balancing, and automated reports
+                </p>
               </div>
             </div>
+
             <div className="flex items-start gap-3">
               <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
               <div>
                 <h4 className="text-gray-900">Real-Time Collaboration</h4>
-                <p className="text-sm text-gray-600">Live chat, video conferencing, and collaborative document editing</p>
+                <p className="text-sm text-gray-600">
+                  Live chat, video conferencing, and collaborative document editing
+                </p>
               </div>
             </div>
+
             <div className="flex items-start gap-3">
               <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
               <div>
                 <h4 className="text-gray-900">Advanced Analytics</h4>
-                <p className="text-sm text-gray-600">Comprehensive reports, burndown charts, and project health indicators</p>
+                <p className="text-sm text-gray-600">
+                  Comprehensive reports, burndown charts, and project health indicators
+                </p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Right side */}
         <Card className="shadow-xl">
           <CardHeader>
             <CardTitle>Welcome to TaskFlow</CardTitle>
             <CardDescription>Login or create an account to get started</CardDescription>
           </CardHeader>
+
           <CardContent>
             <Tabs defaultValue="login" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
@@ -155,7 +181,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     />
                   </div>
 
-                  <Button type="submit" className="w-full">Login</Button>
+                  <Button type="submit" className="w-full">
+                    Login
+                  </Button>
                 </form>
               </TabsContent>
 
@@ -206,7 +234,9 @@ export function LoginPage({ onLogin }: LoginPageProps) {
                     </select>
                   </div>
 
-                  <Button type="submit" className="w-full">Create Account</Button>
+                  <Button type="submit" className="w-full">
+                    Create Account
+                  </Button>
                 </form>
               </TabsContent>
             </Tabs>

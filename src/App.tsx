@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
+import socket from "@/lib/socket";
+import { toast } from "sonner";
 
 import { LoginPage } from "./pages/LoginPage";
 import { Header } from "./pages/Header";
@@ -102,7 +104,6 @@ export default function App() {
         "notifications",
         "activity",
         "settings",
-
       ],
       "team-member": [
         "dashboard",
@@ -145,6 +146,7 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    socket.disconnect();
     setUser(null);
     setPage("dashboard");
   };
@@ -194,6 +196,51 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!user?._id) return;
+
+    const registerUser = () => {
+      socket.emit("register", user._id);
+      console.log("✅ Socket registered for user:", user._id);
+    };
+
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    socket.on("connect", registerUser);
+
+    if (socket.connected) {
+      registerUser();
+    }
+
+    return () => {
+      socket.off("connect", registerUser);
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (!user?._id) return;
+
+    const handleLiveNotification = (notification: any) => {
+      console.log("🔔 Global live notification:", notification);
+      toast.success(notification?.title || "New notification");
+    };
+
+    const handleLiveAlert = (alert: any) => {
+      console.log("🚨 Global live alert:", alert);
+      toast.success(alert?.title || "New alert received");
+    };
+
+    socket.on("new_notification", handleLiveNotification);
+    socket.on("new_alert", handleLiveAlert);
+
+    return () => {
+      socket.off("new_notification", handleLiveNotification);
+      socket.off("new_alert", handleLiveAlert);
+    };
+  }, [user]);
+
+  useEffect(() => {
     if (user && role && !isAllowed(page)) {
       setPage("dashboard");
     }
@@ -214,6 +261,7 @@ export default function App() {
         <LoginPage
           onLogin={async (u) => {
             setUser(u);
+            localStorage.setItem("user", JSON.stringify(u));
 
             try {
               const settingsRes = await api.get("/settings/me");
@@ -248,7 +296,7 @@ export default function App() {
               {page === "budget" && isAllowed("budget") && <BudgetPage />}
               {page === "tasks" && isAllowed("tasks") && <TasksPage />}
               {page === "notifications" && isAllowed("notifications") && <NotificationsPage />}
-               {page === "activity" && isAllowed("activity") && <ActivityPage />}
+              {page === "activity" && isAllowed("activity") && <ActivityPage />}
               {page === "settings" && isAllowed("settings") && <SettingsPage />}
             </main>
           </div>

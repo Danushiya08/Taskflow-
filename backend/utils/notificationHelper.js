@@ -60,7 +60,10 @@ const getProjectStakeholders = async (projectId) => {
   }
 
   for (const membership of memberships) {
-    const userId = membership?.user?._id ? String(membership.user._id) : String(membership?.user);
+    const userId = membership?.user?._id
+      ? String(membership.user._id)
+      : String(membership?.user);
+
     const role = normalizeRole(membership?.roleInProject || membership?.user?.role);
 
     if (!userId) continue;
@@ -86,6 +89,7 @@ const getProjectStakeholders = async (projectId) => {
 };
 
 const createNotificationsForUsers = async ({
+  app = null,
   userIds = [],
   type,
   title,
@@ -106,10 +110,27 @@ const createNotificationsForUsers = async ({
     relatedTask,
   }));
 
-  return Notification.insertMany(docs);
+  const notifications = await Notification.insertMany(docs);
+
+  // emit live socket notifications if app is provided
+ if (app) {
+  const io = app.get("io");
+
+  for (const notification of notifications) {
+    const targetUserId = String(notification.user);
+
+    console.log("🔔 Emitting notification to room:", targetUserId);
+
+    io.to(targetUserId).emit("new_notification", notification);
+    console.log("✅ Emitted new_notification:", notification.title);
+  }
+}
+
+  return notifications;
 };
 
 const notifyByRoles = async ({
+  app = null,
   projectId,
   roles = [],
   type,
@@ -135,6 +156,7 @@ const notifyByRoles = async ({
   userIds = uniqueIds(userIds).filter((id) => !excluded.has(String(id)));
 
   return createNotificationsForUsers({
+    app,
     userIds,
     type,
     title,

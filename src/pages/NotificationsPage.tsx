@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import api from "@/lib/api";
+import socket from "@/lib/socket";
 import {
   Card,
   CardContent,
@@ -317,6 +318,41 @@ export function NotificationsPage() {
       loadAlerts(userRole);
     }
   }, [userRole]);
+
+  useEffect(() => {
+    socket.on("new_notification", (notification: NotificationItem) => {
+      setNotifications((prev) => {
+        const exists = prev.some((item) => item._id === notification._id);
+        if (exists) return prev;
+
+        return [notification, ...prev].sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      });
+
+      toast.success("🔔 New notification");
+    });
+
+    socket.on("new_alert", (alert: AlertItem) => {
+      setAlerts((prev) => {
+        const exists = prev.some((item) => item._id === alert._id);
+        if (exists) return prev;
+
+        return [alert, ...prev].sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      });
+
+      toast.success("🚨 New alert received");
+    });
+
+    return () => {
+      socket.off("new_notification");
+      socket.off("new_alert");
+    };
+  }, []);
 
   const unreadNotificationCount = useMemo(
     () => notifications.filter((n) => !n.isRead).length,

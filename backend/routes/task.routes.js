@@ -198,6 +198,7 @@ const createProjectTaskHandler = async (req, res) => {
     // Notify assigned user
     if (task.assignedTo) {
       await createNotificationsForUsers({
+        app: req.app,
         userIds: [task.assignedTo],
         type: "task_assigned",
         title: "New task assigned",
@@ -209,6 +210,7 @@ const createProjectTaskHandler = async (req, res) => {
 
     // Notify PM/admin that task was created
     await notifyByRoles({
+      app: req.app,
       projectId: task.projectId,
       roles: ["admin", "project-manager"],
       type: "activity_added",
@@ -291,6 +293,7 @@ router.patch("/tasks/:id", authMiddleware, async (req, res) => {
     // Notify newly assigned user
     if (newAssignedTo && newAssignedTo !== oldAssignedTo) {
       await createNotificationsForUsers({
+        app: req.app,
         userIds: [task.assignedTo],
         type: "task_assigned",
         title: "Task assigned",
@@ -301,6 +304,7 @@ router.patch("/tasks/:id", authMiddleware, async (req, res) => {
 
       // Notify PM/admin about reassignment
       await notifyByRoles({
+        app: req.app,
         projectId: task.projectId,
         roles: ["admin", "project-manager"],
         type: "activity_added",
@@ -315,6 +319,7 @@ router.patch("/tasks/:id", authMiddleware, async (req, res) => {
     // Notify assigned user when status changes
     if (task.assignedTo && req.body.status !== undefined && task.status !== oldStatus) {
       await createNotificationsForUsers({
+        app: req.app, 
         userIds: [task.assignedTo],
         type: "task_status_changed",
         title: "Task status updated",
@@ -325,6 +330,7 @@ router.patch("/tasks/:id", authMiddleware, async (req, res) => {
 
       // Notify PM/admin/team about status change
       await notifyByRoles({
+        app: req.app,
         projectId: task.projectId,
         roles: ["admin", "project-manager"],
         type: "task_status_changed",
@@ -338,6 +344,7 @@ router.patch("/tasks/:id", authMiddleware, async (req, res) => {
       // Optional client-facing update when task is done
       if (String(task.status).toLowerCase() === "done") {
         await notifyByRoles({
+          app: req.app,
           projectId: task.projectId,
           roles: ["client"],
           type: "activity_added",
@@ -385,6 +392,7 @@ router.delete("/tasks/:id", authMiddleware, async (req, res) => {
 await Task.deleteOne({ _id: task._id });
 
     await notifyByRoles({
+      app: req.app,
       projectId: task.projectId,
       roles: ["admin", "project-manager"],
       type: "activity_added",
