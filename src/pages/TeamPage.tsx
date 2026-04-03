@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+import VideoCall from "@/components/VideoCall";
 
 import {
   Plus,
@@ -22,6 +23,7 @@ import {
   User,
   Calendar,
   Flag,
+  Video,
 } from "lucide-react";
 
 import {
@@ -181,6 +183,9 @@ export function TeamPage() {
   const [assignPriority, setAssignPriority] = useState<TaskPriority>("medium");
   const [assignDueDate, setAssignDueDate] = useState("");
   const [assigning, setAssigning] = useState(false);
+
+  const [callOpen, setCallOpen] = useState(false);
+  const [callUser, setCallUser] = useState<any | null>(null);
 
   const { preferences, loadingPreferences } = useUserPreferences();
   const compactMode = preferences.compactMode;
@@ -508,6 +513,12 @@ export function TeamPage() {
     if (projects.length === 0) {
       await loadProjects();
     }
+  };
+
+  const openCall = (u: any) => {
+    if (!u?._id) return;
+    setCallUser(u);
+    setCallOpen(true);
   };
 
   const submitAssign = async () => {
@@ -884,6 +895,22 @@ export function TeamPage() {
                             onClick={() => openDetails(u)}
                           >
                             Details
+                          </Button>
+
+                          <Button
+                            variant="default"
+                            size={actionButtonSize}
+                            className={buttonCompactClass}
+                            disabled={!active || !currentUser?._id || currentUser?._id === u._id}
+                            title={
+                              currentUser?._id === u._id
+                                ? "You cannot call yourself"
+                                : "Start video call"
+                            }
+                            onClick={() => openCall(u)}
+                          >
+                            <Video className="w-4 h-4 mr-2" />
+                            Video Call
                           </Button>
                         </div>
                       </div>
@@ -1475,6 +1502,36 @@ export function TeamPage() {
               Delete
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={callOpen}
+        onOpenChange={(open) => {
+          setCallOpen(open);
+          if (!open) {
+            setCallUser(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-5xl border-border bg-card text-card-foreground">
+          <DialogHeaderUI>
+            <DialogTitleUI>Video Call</DialogTitleUI>
+            <DialogDescription>
+              Calling <span className="font-medium">{callUser?.name || "—"}</span>
+            </DialogDescription>
+          </DialogHeaderUI>
+
+          {currentUser?._id && callUser?._id ? (
+            <VideoCall
+              currentUserId={currentUser._id}
+              targetUserId={callUser._id}
+            />
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              Unable to start call. Missing user information.
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -1,5 +1,12 @@
-import { useEffect, useState } from "react";
-import { Bell, Search, ChevronDown, LogOut, Settings, User } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Bell,
+  Search,
+  ChevronDown,
+  LogOut,
+  Settings,
+  User,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import api from "@/lib/api";
@@ -47,13 +54,47 @@ export function Header({ currentUser, onLogout }: HeaderProps) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+
+  const visibleNotifications = useMemo(() => {
+    return notifications.slice(0, 8);
+  }, [notifications]);
+
+  const formatRelativeTime = (dateString: string) => {
+    const now = new Date().getTime();
+    const time = new Date(dateString).getTime();
+    const diffInSeconds = Math.floor((now - time) / 1000);
+
+    if (diffInSeconds < 60) return "Just now";
+
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes} min${diffInMinutes > 1 ? "s" : ""} ago`;
+    }
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) {
+      return `${diffInHours} hour${diffInHours > 1 ? "s" : ""} ago`;
+    }
+
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) {
+      return `${diffInDays} day${diffInDays > 1 ? "s" : ""} ago`;
+    }
+
+    return new Date(dateString).toLocaleString();
+  };
 
   const loadNotifications = async () => {
     try {
       setLoadingNotifications(true);
       const res = await api.get("/notifications");
-      setNotifications(res.data?.notifications || []);
-      setUnreadCount(res.data?.unreadCount || 0);
+
+      const fetchedNotifications = res.data?.notifications || [];
+      const fetchedUnreadCount = res.data?.unreadCount || 0;
+
+      setNotifications(fetchedNotifications);
+      setUnreadCount(fetchedUnreadCount);
     } catch (error) {
       console.error("Failed to load notifications", error);
     } finally {
@@ -65,13 +106,21 @@ export function Header({ currentUser, onLogout }: HeaderProps) {
     try {
       await api.patch(`/notifications/${id}/read`);
 
+      let wasUnread = false;
+
       setNotifications((prev) =>
-        prev.map((item) =>
-          item._id === id ? { ...item, isRead: true } : item
-        )
+        prev.map((item) => {
+          if (item._id === id && !item.isRead) {
+            wasUnread = true;
+            return { ...item, isRead: true };
+          }
+          return item;
+        })
       );
 
-      setUnreadCount((prev) => Math.max(0, prev - 1));
+      if (wasUnread) {
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
     } catch (error) {
       console.error("Failed to mark notification as read", error);
     }
@@ -96,10 +145,36 @@ export function Header({ currentUser, onLogout }: HeaderProps) {
   }, []);
 
   useEffect(() => {
+    const userId = currentUser?._id || currentUser?.id;
+
+    if (!userId) return;
+
+    const registerUser = () => {
+      socket.emit("register", String(userId));
+    };
+
+    if (socket.connected) {
+      registerUser();
+    }
+
+    socket.on("connect", registerUser);
+
+    return () => {
+      socket.off("connect", registerUser);
+    };
+  }, [currentUser]);
+
+  useEffect(() => {
     const handleLiveNotification = (notification: NotificationItem) => {
+      let addedUnread = false;
+
       setNotifications((prev) => {
         const exists = prev.some((item) => item._id === notification._id);
         if (exists) return prev;
+
+        if (!notification.isRead) {
+          addedUnread = true;
+        }
 
         return [notification, ...prev].sort(
           (a, b) =>
@@ -107,7 +182,9 @@ export function Header({ currentUser, onLogout }: HeaderProps) {
         );
       });
 
-      setUnreadCount((prev) => prev + 1);
+      if (addedUnread) {
+        setUnreadCount((prev) => prev + 1);
+      }
     };
 
     socket.on("new_notification", handleLiveNotification);
@@ -132,25 +209,39 @@ export function Header({ currentUser, onLogout }: HeaderProps) {
         </div>
 
         <div className="flex items-center gap-4">
-          <DropdownMenu onOpenChange={(open) => open && loadNotifications()}>
+          <DropdownMenu
+            open={isNotifOpen}
+            onOpenChange={(open) => {
+              setIsNotifOpen(open);
+              if (open) {
+                loadNotifications();
+              }
+            }}
+          >
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative transition-transform hover:scale-105"
+              >
                 <Bell className="w-5 h-5" />
+
                 {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-medium flex items-center justify-center shadow">
                     {unreadCount > 99 ? "99+" : unreadCount}
                   </span>
                 )}
               </Button>
             </DropdownMenuTrigger>
 
-            <DropdownMenuContent align="end" className="w-96">
-              <DropdownMenuLabel className="flex items-center justify-between">
-                <span>Notifications</span>
+            <DropdownMenuContent align="end" className="w-96 p-0">
+              <DropdownMenuLabel className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm font-semibold">Notifications</span>
+
                 {notifications.length > 0 && unreadCount > 0 && (
                   <button
                     onClick={markAllAsRead}
-                    className="text-xs text-blue-600 hover:underline"
+                    className="text-xs font-medium text-blue-600 hover:underline"
                   >
                     Mark all as read
                   </button>
@@ -160,57 +251,78 @@ export function Header({ currentUser, onLogout }: HeaderProps) {
               <DropdownMenuSeparator />
 
               {loadingNotifications ? (
-                <div className="px-3 py-4 text-sm text-muted-foreground">
+                <div className="px-4 py-6 text-sm text-muted-foreground">
                   Loading notifications...
                 </div>
-              ) : notifications.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-muted-foreground">
-                  No notifications yet.
+              ) : visibleNotifications.length === 0 ? (
+                <div className="px-4 py-6 text-sm text-muted-foreground text-center">
+                  You’re all caught up 🎉
                 </div>
               ) : (
-                notifications.slice(0, 8).map((notification) => (
-                  <DropdownMenuItem
-                    key={notification._id}
-                    className="flex flex-col items-start gap-1 whitespace-normal py-3 cursor-pointer"
-                    onClick={() => {
-                      if (!notification.isRead) {
-                        markOneAsRead(notification._id);
-                      }
-                    }}
-                  >
-                    <div className="flex w-full items-start justify-between gap-2">
-                      <span className="text-sm font-medium">
-                        {notification.title}
-                      </span>
-                      {!notification.isRead && (
-                        <span className="mt-1 w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                      )}
-                    </div>
+                <div className="max-h-[420px] overflow-y-auto">
+                  {visibleNotifications.map((notification) => (
+                    <DropdownMenuItem
+                      key={notification._id}
+                      className="flex flex-col items-start gap-1 whitespace-normal px-4 py-3 cursor-pointer border-b last:border-b-0"
+                      onClick={() => {
+                        if (!notification.isRead) {
+                          markOneAsRead(notification._id);
+                        }
+                      }}
+                    >
+                      <div className="flex w-full items-start justify-between gap-3">
+                        <span className="text-sm font-semibold leading-snug">
+                          {notification.title}
+                        </span>
 
-                    <div className="text-xs text-muted-foreground leading-relaxed">
-                      {notification.message}
-                    </div>
+                        {!notification.isRead && (
+                          <span className="mt-1 w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0" />
+                        )}
+                      </div>
 
-                    <div className="text-[11px] text-muted-foreground">
-                      {new Date(notification.createdAt).toLocaleString()}
-                    </div>
-                  </DropdownMenuItem>
-                ))
+                      <div className="text-xs text-muted-foreground leading-relaxed">
+                        {notification.message}
+                      </div>
+
+                      <div className="text-[11px] text-muted-foreground">
+                        {formatRelativeTime(notification.createdAt)}
+                      </div>
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+              )}
+
+              {notifications.length > 8 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <div className="px-4 py-3 text-center">
+                    <button className="text-xs font-medium text-blue-600 hover:underline">
+                      View all notifications
+                    </button>
+                  </div>
+                </>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center gap-2 h-auto py-2 px-2">
+              <Button
+                variant="ghost"
+                className="flex items-center gap-2 h-auto py-2 px-2"
+              >
                 <img
                   src={avatarSrc}
                   alt={displayName}
                   className="w-8 h-8 rounded-full border border-border object-cover"
                 />
                 <div className="text-left hidden sm:block">
-                  <div className="text-sm font-medium text-foreground">{displayName}</div>
-                  <div className="text-xs text-muted-foreground capitalize">{displayRole}</div>
+                  <div className="text-sm font-medium text-foreground">
+                    {displayName}
+                  </div>
+                  <div className="text-xs text-muted-foreground capitalize">
+                    {displayRole}
+                  </div>
                 </div>
                 <ChevronDown className="w-4 h-4 text-muted-foreground" />
               </Button>
@@ -232,7 +344,10 @@ export function Header({ currentUser, onLogout }: HeaderProps) {
 
               <DropdownMenuSeparator />
 
-              <DropdownMenuItem onClick={onLogout} className="text-red-600 focus:text-red-600">
+              <DropdownMenuItem
+                onClick={onLogout}
+                className="text-red-600 focus:text-red-600"
+              >
                 <LogOut className="w-4 h-4 mr-2" />
                 Logout
               </DropdownMenuItem>

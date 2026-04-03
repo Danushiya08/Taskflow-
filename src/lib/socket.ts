@@ -7,6 +7,7 @@ const socket = io("https://taskflow-production-8484.up.railway.app", {
   reconnection: true,
   reconnectionAttempts: Infinity,
   reconnectionDelay: 1000,
+  autoConnect: true,
 });
 
 socket.on("connect", () => {

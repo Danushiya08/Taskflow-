@@ -33,7 +33,10 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173", 
+    origin: [
+      "http://localhost:5173",
+      "https://your-frontend-domain.vercel.app",
+    ],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true,
   },
@@ -56,6 +59,48 @@ io.on("connection", (socket) => {
 
     console.log("📩 Register event received:", userId);
     console.log("✅ User joined room:", room, "socket:", socket.id);
+  });
+
+  socket.on("call-user", ({ to, from, signal }) => {
+    if (!to || !from || !signal) return;
+
+    io.to(String(to)).emit("incoming-call", {
+      from,
+      signal,
+    });
+
+    console.log("📞 Call request sent from", from, "to", to);
+  });
+
+  socket.on("answer-call", ({ to, signal }) => {
+    if (!to || !signal) return;
+
+    io.to(String(to)).emit("call-accepted", {
+      signal,
+    });
+
+    console.log("✅ Call answered for", to);
+  });
+
+  socket.on("ice-candidate", ({ to, candidate }) => {
+  if (!to || !candidate) return;
+
+  io.to(String(to)).emit("ice-candidate", {
+    candidate,
+  });
+
+  console.log("🧊 ICE candidate sent to", to);
+  });
+
+
+  socket.on("end-call", ({ to, from }) => {
+    if (!to) return;
+
+    io.to(String(to)).emit("call-ended", {
+      from: from || null,
+    });
+
+    console.log("❌ Call ended by", from, "for", to);
   });
 
   socket.on("disconnect", () => {

@@ -26,6 +26,7 @@ import { ClientDashboard } from "./components/dashboards/ClientDashboard";
 import { ProjectManagerDashboard } from "./components/dashboards/ProjectManagerDashboard";
 import { TeamMemberDashboard } from "./components/dashboards/TeamMemberDashboard";
 
+
 type Role = "admin" | "project-manager" | "team-member" | "client";
 
 type Page =
@@ -280,6 +281,7 @@ export default function App() {
             <Header currentUser={user} onLogout={handleLogout} />
 
             <main className="flex-1 overflow-y-auto bg-background text-foreground">
+
               {page === "dashboard" && role === "admin" && <Dashboard />}
               {page === "dashboard" && role === "project-manager" && <ProjectManagerDashboard />}
               {page === "dashboard" && role === "team-member" && <TeamMemberDashboard />}
