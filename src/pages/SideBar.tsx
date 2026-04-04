@@ -45,7 +45,7 @@ export function Sidebar({ currentPage, onNavigate, currentUser }: SidebarProps) 
       id: "team",
       label: "Team",
       icon: Users,
-      roles: ["admin", "project-manager"] as Role[],
+      roles: ["admin", "project-manager" , "team-member"] as Role[],
     },
     {
       id: "time-tracking",

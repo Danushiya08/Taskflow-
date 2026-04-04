@@ -186,6 +186,10 @@ export function TeamPage() {
 
   const [callOpen, setCallOpen] = useState(false);
   const [callUser, setCallUser] = useState<any | null>(null);
+  const [incomingCallData, setIncomingCallData] = useState<{
+  from: string;
+  signal: RTCSessionDescriptionInit;
+} | null>(null);
 
   const { preferences, loadingPreferences } = useUserPreferences();
   const compactMode = preferences.compactMode;
@@ -517,6 +521,7 @@ export function TeamPage() {
 
   const openCall = (u: any) => {
     if (!u?._id) return;
+    setIncomingCallData(null);
     setCallUser(u);
     setCallOpen(true);
   };
@@ -927,7 +932,11 @@ export function TeamPage() {
                       <div className={`rounded-md border border-border ${cardInnerPadding}`}>
                         <p className="text-xs text-muted-foreground">📌 Tasks</p>
                         <p className={compactMode ? "text-base font-medium text-card-foreground" : "text-lg font-medium text-card-foreground"}>
-                          {tasksCount === null ? "—" : tasksCount}
+                          {tasksCount === null ? (
+                             <span className="text-muted-foreground text-sm">Restricted</span>
+                          ) : (
+                            tasksCount
+                          )}
                         </p>
 
                         {Array.isArray(u.tasks) && u.tasks.length > 0 && canViewStats ? (
@@ -954,8 +963,12 @@ export function TeamPage() {
                       <div className={`rounded-md border border-border ${cardInnerPadding}`}>
                         <p className="text-xs text-muted-foreground">📁 Projects</p>
                         <p className={compactMode ? "text-base font-medium text-card-foreground" : "text-lg font-medium text-card-foreground"}>
-                          {projectsCount === null ? "—" : projectsCount}
-                        </p>
+                          {projectsCount === null ? (
+                            <span className="text-muted-foreground text-sm">Restricted</span> 
+                          ) : (
+                            projectsCount
+                          )}
+                          </p>
 
                         {Array.isArray(u.projects) && u.projects.length > 0 && canViewStats ? (
                           <ul className="text-xs text-muted-foreground mt-2 space-y-1">
@@ -1511,6 +1524,7 @@ export function TeamPage() {
           setCallOpen(open);
           if (!open) {
             setCallUser(null);
+            setIncomingCallData(null);
           }
         }}
       >
@@ -1526,6 +1540,7 @@ export function TeamPage() {
             <VideoCall
               currentUserId={currentUser._id}
               targetUserId={callUser._id}
+              initialIncomingCall={incomingCallData}
             />
           ) : (
             <div className="text-sm text-muted-foreground">
