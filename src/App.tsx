@@ -81,7 +81,9 @@ const applyTheme = (theme: string) => {
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
-  const [page, setPage] = useState<Page>("dashboard");
+  const [page, setPage] = useState<Page>(() => {
+  return (localStorage.getItem("page") as Page) || "dashboard";
+});
   const [loading, setLoading] = useState(true);
 
   const [incomingCall, setIncomingCall] = useState<IncomingCallPayload | null>(null);
@@ -160,12 +162,16 @@ export default function App() {
   const handleNavigate = (p: string) => {
     const next = p as Page;
     if (!role) return;
-    setPage(isAllowed(next) ? next : "dashboard");
+    
+     const finalPage = isAllowed(next) ? next : "dashboard";
+  setPage(finalPage);
+  localStorage.setItem("page", finalPage);
   };
 
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
+    localStorage.removeItem("page");
     socket.disconnect();
     setUser(null);
     setPage("dashboard");
