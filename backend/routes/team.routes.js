@@ -2,9 +2,9 @@
 const express = require("express");
 const router = express.Router();
 
-const mongoose = require("mongoose"); // ✅ IMPORTANT (ObjectId validation)
+const mongoose = require("mongoose"); 
 
-const authMiddleware = require("../middleware/authMiddleware");
+const { protect } = require("../middleware/authMiddleware");
 const User = require("../models/User");
 const Project = require("../models/Project");
 const Task = require("../models/Task");
@@ -53,7 +53,7 @@ const lastActiveLabel = (date) => {
 // ✅ USER DETAILS (Admin/PM only)
 // GET /api/team/users/:id/details
 // =====================================================
-router.get("/users/:id/details", authMiddleware, async (req, res) => {
+router.get("/users/:id/details", protect, async (req, res) => {
   try {
     if (!canViewStats(req) || isClient(req)) {
       return res.status(403).json({ message: "Not allowed" });
@@ -168,7 +168,7 @@ router.get("/users/:id/details", authMiddleware, async (req, res) => {
 // =====================================================
 // GET TEAM USERS (clients excluded)
 // =====================================================
-router.get("/users", authMiddleware, async (req, res) => {
+router.get("/users", protect, async (req, res) => {
   try {
     if (!canViewTeam(req) || isClient(req))
       return res.status(403).json({ message: "Not allowed" });
@@ -313,7 +313,7 @@ router.get("/users", authMiddleware, async (req, res) => {
 // =====================================================
 // ADD MEMBER (Admin + PM)
 // =====================================================
-router.post("/users", authMiddleware, async (req, res) => {
+router.post("/users", protect, async (req, res) => {
   try {
     if (!canAddMember(req) || isClient(req))
       return res.status(403).json({ message: "Not allowed" });
@@ -364,7 +364,7 @@ router.post("/users", authMiddleware, async (req, res) => {
 // =====================================================
 // ADMIN ONLY: Change role
 // =====================================================
-router.patch("/users/:id/role", authMiddleware, async (req, res) => {
+router.patch("/users/:id/role", protect, async (req, res) => {
   try {
     if (!canChangeRole(req)) return res.status(403).json({ message: "Not allowed" });
 
@@ -397,7 +397,7 @@ router.patch("/users/:id/role", authMiddleware, async (req, res) => {
 // =====================================================
 // Enable/Disable (Admin & PM)
 // =====================================================
-router.patch("/users/:id/toggle", authMiddleware, async (req, res) => {
+router.patch("/users/:id/toggle", protect, async (req, res) => {
   try {
     if (!canToggleUser(req)) return res.status(403).json({ message: "Not allowed" });
 
@@ -426,7 +426,7 @@ router.patch("/users/:id/toggle", authMiddleware, async (req, res) => {
 // =====================================================
 // DELETE USER (Admin + PM)
 // =====================================================
-router.delete("/users/:id", authMiddleware, async (req, res) => {
+router.delete("/users/:id", protect, async (req, res) => {
   try {
     if (!(isAdmin(req) || isPM(req))) return res.status(403).json({ message: "Not allowed" });
 

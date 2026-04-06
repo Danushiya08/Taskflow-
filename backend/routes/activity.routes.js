@@ -1,13 +1,13 @@
 const express = require("express");
 const router = express.Router();
 
-const authMiddleware = require("../middleware/authMiddleware");
+const { protect } = require("../middleware/authMiddleware");
 
 const Activity = require("../models/Activity");
 const ProjectMember = require("../models/ProjectMember");
 const Project = require("../models/Project");
 
-router.use(authMiddleware);
+router.use(protect);
 
 // helpers
 

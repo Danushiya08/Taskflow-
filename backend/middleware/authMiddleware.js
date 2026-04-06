@@ -22,14 +22,24 @@ const protect = (req, res, next) => {
 
     next();
   } catch (err) {
-    return res.status(401).json({ message: "Invalid token" });
+    if (err.name === "TokenExpiredError") {
+      return res.status(401).json({ message: "Token expired" });
+    }
+
+    if (err.name === "JsonWebTokenError") {
+      return res.status(401).json({ message: "Invalid token" });
+    }
+
+    return res.status(401).json({ message: "Authentication failed" });
   }
 };
 
 const authorizeRoles = (...roles) => {
   return (req, res, next) => {
     if (!req.user || !req.user.role) {
-      return res.status(403).json({ message: "Access denied. No user role found." });
+      return res
+        .status(403)
+        .json({ message: "Access denied. No user role found." });
     }
 
     if (!roles.includes(req.user.role)) {
@@ -42,9 +52,7 @@ const authorizeRoles = (...roles) => {
   };
 };
 
-
-module.exports = protect;
-
-
-module.exports.protect = protect;
-module.exports.authorizeRoles = authorizeRoles;
+module.exports = {
+  protect,
+  authorizeRoles,
+};

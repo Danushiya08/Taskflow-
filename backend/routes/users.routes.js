@@ -1,11 +1,11 @@
 const express = require("express");
 const router = express.Router();
 
-const authMiddleware = require("../middleware/authMiddleware");
+const { protect } = require("../middleware/authMiddleware");
 const User = require("../models/User");
 
 // ✅ GET /api/users  (protected) - list users for dropdowns
-router.get("/", authMiddleware, async (req, res) => {
+router.get("/", protect, async (req, res) => {
   try {
     const users = await User.find().select("_id name email role").sort({ name: 1 });
     return res.json({ users });

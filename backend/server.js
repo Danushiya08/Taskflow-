@@ -30,16 +30,17 @@ const { runAlertChecks } = require("./utils/alertHelper");
 
 const app = express();
 const server = http.createServer(app);
+server.setTimeout(30000);
+
+const corsOptions = {
+  origin: true,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
 
 const io = new Server(server, {
-  cors: {
-    origin: [
-      "http://localhost:5173",
-      "https://your-frontend-domain.vercel.app",
-    ],
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-    credentials: true,
-  },
+  cors: corsOptions,
 });
 
 // store connected users
@@ -83,15 +84,14 @@ io.on("connection", (socket) => {
   });
 
   socket.on("ice-candidate", ({ to, candidate }) => {
-  if (!to || !candidate) return;
+    if (!to || !candidate) return;
 
-  io.to(String(to)).emit("ice-candidate", {
-    candidate,
+    io.to(String(to)).emit("ice-candidate", {
+      candidate,
+    });
+
+    console.log("🧊 ICE candidate sent to", to);
   });
-
-  console.log("🧊 ICE candidate sent to", to);
-  });
-
 
   socket.on("end-call", ({ to, from }) => {
     if (!to) return;
@@ -108,60 +108,34 @@ io.on("connection", (socket) => {
   });
 });
 
-// make socket available in controllers/routes/helpers
 app.set("io", io);
 
-/**
- * Railway / proxies:
- * Ensures req.ip is correct (important for rate limiting)
- */
 app.set("trust proxy", 1);
 
-/**
- * Rate limiting (basic protection)
- */
+app.use(cors(corsOptions));
+app.options(/.*/, cors(corsOptions));
+
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // adjust as needed
+  windowMs: 15 * 60 * 1000,
+  max: 2000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { message: "Too many requests, please try again later." },
+  skip: (req) => process.env.NODE_ENV !== "production",
 });
 app.use(limiter);
 
-/**
- * CORS (keep as-is for now, but you can lock it later)
- */
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  })
-);
-
-/**
- * Body parsing (add simple safety limits)
- */
 app.use(express.json({ limit: "1mb" }));
 
-/**
- * Request logger (keep your logger)
- */
 app.use((req, res, next) => {
   console.log("➡️", req.method, req.url);
   next();
 });
 
-/**
- * Root route
- */
 app.get("/", (req, res) => {
   res.send("TaskFlow Backend is running 🚀");
 });
 
-/**
- * Health check (enterprise standard)
- */
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "OK",
@@ -170,9 +144,6 @@ app.get("/health", (req, res) => {
   });
 });
 
-/**
- * Routes
- */
 app.use("/api/auth", authRoutes);
 app.use("/api/test", testRoutes);
 app.use("/api", meRoutes);
@@ -194,16 +165,10 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/activity", activityRoutes);
 app.use("/api", alertsRoutes);
 
-/**
- * 404 handler (for unknown routes)
- */
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });
 });
 
-/**
- * Global error handler (must be last)
- */
 app.use((err, req, res, next) => {
   console.error("🔥 Error:", err);
 
@@ -214,17 +179,28 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
+mongoose.connection.on("connected", () => {
+  console.log("✅ MongoDB connection established");
+});
+
+mongoose.connection.on("disconnected", () => {
+  console.log("⚠️ MongoDB disconnected");
+});
+
+mongoose.connection.on("reconnected", () => {
+  console.log("🔄 MongoDB reconnected");
+});
+
+mongoose.connection.on("error", (err) => {
+  console.error("❌ MongoDB connection error:", err.message);
+});
+
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("✅ MongoDB connected");
 
-    /**
-     * Smart Alerts Cron Job
-     * TEST MODE: runs every minute
-     * Later change to: "0 8 * * *" for every day at 8 AM
-     */
-    cron.schedule("* * * * *", async () => {
+    cron.schedule("0 8 * * *", async () => {
       console.log("⏰ Running alert checks...");
       try {
         await runAlertChecks();

@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const authMiddleware = require("../middleware/authMiddleware");
+const { protect } = require("../middleware/authMiddleware");
 const {
   getMyAlerts,
   getUnreadAlertCount,
@@ -9,9 +9,9 @@ const {
   markAllAlertsAsRead,
 } = require("../controllers/alertsController");
 
-router.get("/alerts", authMiddleware, getMyAlerts);
-router.get("/alerts/unread-count", authMiddleware, getUnreadAlertCount);
-router.patch("/alerts/:id/read", authMiddleware, markAlertAsRead);
-router.patch("/alerts/read-all", authMiddleware, markAllAlertsAsRead);
+router.get("/alerts", protect, getMyAlerts);
+router.get("/alerts/unread-count", protect, getUnreadAlertCount);
+router.patch("/alerts/:id/read", protect, markAlertAsRead);
+router.patch("/alerts/read-all", protect, markAllAlertsAsRead);
 
 module.exports = router;

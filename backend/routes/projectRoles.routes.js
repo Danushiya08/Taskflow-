@@ -1,8 +1,8 @@
 const router = require("express").Router();
-const authMiddleware = require("../middleware/authMiddleware");
+const { protect } = require("../middleware/authMiddleware");
 const ProjectMember = require("../models/ProjectMember");
 
-router.get("/projects/roles", authMiddleware, async (req, res) => {
+router.get("/projects/roles", protect, async (req, res) => {
   try {
     // Admin can be treated as admin everywhere
     if (String(req.user?.role || "").toLowerCase() === "admin") {

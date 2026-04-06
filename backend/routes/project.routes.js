@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const authMiddleware = require("../middleware/authMiddleware");
+const { protect } = require("../middleware/authMiddleware");
 const Project = require("../models/Project");
 const ProjectMember = require("../models/ProjectMember");
 const { logActivity } = require("../utils/activityHelper");
@@ -121,7 +121,7 @@ const upsertMembersForProject = async (project) => {
 // =====================================================
 // GET PROJECTS
 // =====================================================
-router.get("/", authMiddleware, async (req, res) => {
+router.get("/", protect, async (req, res) => {
   try {
     if (!canViewProject(req)) {
       return res.status(403).json({ message: "Not allowed" });
@@ -180,7 +180,7 @@ router.get("/", authMiddleware, async (req, res) => {
 // =====================================================
 // CREATE PROJECT
 // =====================================================
-router.post("/", authMiddleware, async (req, res) => {
+router.post("/", protect, async (req, res) => {
   try {
     if (!isAdmin(req) && !isPM(req)) {
       return res
@@ -310,7 +310,7 @@ router.post("/", authMiddleware, async (req, res) => {
 // =====================================================
 // UPDATE PROJECT
 // =====================================================
-router.patch("/:id", authMiddleware, async (req, res) => {
+router.patch("/:id", protect, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
 
@@ -392,7 +392,7 @@ router.patch("/:id", authMiddleware, async (req, res) => {
 // =====================================================
 // DELETE PROJECT
 // =====================================================
-router.delete("/:id", authMiddleware, async (req, res) => {
+router.delete("/:id", protect, async (req, res) => {
   try {
     const project = await Project.findById(req.params.id);
     if (!project) return res.status(404).json({ message: "Project not found" });

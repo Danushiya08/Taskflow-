@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const authMiddleware = require("../middleware/authMiddleware");
+const { protect } = require("../middleware/authMiddleware");
 const Project = require("../models/Project");
 const Task = require("../models/Task");
 const Notification = require("../models/Notification");
@@ -91,7 +91,7 @@ const recalcProjectProgress = async (projectId) => {
 // URL: GET /api/tasks/client/tasks
 // Optional: ?projectId=xxxx to filter one project
 // =====================================================
-router.get("/client/tasks", authMiddleware, async (req, res) => {
+router.get("/client/tasks", protect, async (req, res) => {
   try {
     if (!isClient(req)) return res.status(403).json({ message: "Not allowed" });
 
@@ -233,16 +233,16 @@ const createProjectTaskHandler = async (req, res) => {
 // =====================================================
 // ROUTES (supports BOTH mount styles)
 // =====================================================
-router.get("/projects/:projectId/tasks", authMiddleware, getProjectTasksHandler);
-router.post("/projects/:projectId/tasks", authMiddleware, createProjectTaskHandler);
+router.get("/projects/:projectId/tasks", protect, getProjectTasksHandler);
+router.post("/projects/:projectId/tasks", protect, createProjectTaskHandler);
 
-router.get("/:projectId/tasks", authMiddleware, getProjectTasksHandler);
-router.post("/:projectId/tasks", authMiddleware, createProjectTaskHandler);
+router.get("/:projectId/tasks", protect, getProjectTasksHandler);
+router.post("/:projectId/tasks", protect, createProjectTaskHandler);
 
 // =====================================================
 // UPDATE TASK
 // =====================================================
-router.patch("/tasks/:id", authMiddleware, async (req, res) => {
+router.patch("/tasks/:id", protect, async (req, res) => {
   try {
     const task = await Task.findById(req.params.id);
     if (!task) return res.status(404).json({ message: "Task not found" });
@@ -368,7 +368,7 @@ router.patch("/tasks/:id", authMiddleware, async (req, res) => {
 // =====================================================
 // ✅ DELETE TASK (ADMIN + PM ONLY)
 // =====================================================
-router.delete("/tasks/:id", authMiddleware, async (req, res) => {
+router.delete("/tasks/:id", protect, async (req, res) => {
   try {
     const task = await Task.findById(req.params.id);
     if (!task) return res.status(404).json({ message: "Task not found" });

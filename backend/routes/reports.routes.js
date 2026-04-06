@@ -2,10 +2,10 @@
 const express = require("express");
 const router = express.Router();
 
-const authMiddleware = require("../middleware/authMiddleware");
+const { protect } = require("../middleware/authMiddleware");
 const reportsController = require("../controllers/reportsController");
 
-router.get("/dashboard", authMiddleware, reportsController.getDashboard);
-router.get("/export/pdf", authMiddleware, reportsController.exportDashboardPDF);
+router.get("/dashboard", protect, reportsController.getDashboard);
+router.get("/export/pdf", protect, reportsController.exportDashboardPDF);
 
 module.exports = router;
