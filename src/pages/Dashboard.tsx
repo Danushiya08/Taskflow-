@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { SmartAlertsCard } from "@/components/SmartAlertsCard";
 import {
   TrendingUp,
-  TrendingDown,
   Clock,
   Users,
   FolderKanban,
@@ -85,6 +84,54 @@ const chartTooltipStyle = {
   border: "1px solid hsl(var(--border))",
   color: "hsl(var(--card-foreground))",
   borderRadius: "8px",
+};
+
+const extractUniqueTeamMembers = (projects: BackendProject[]) => {
+  const map = new Map<string, any>();
+
+  projects.forEach((project) => {
+    const members = Array.isArray(project.members) ? project.members : [];
+
+    members.forEach((member: any) => {
+      if (!member) return;
+
+      if (typeof member === "string") {
+        if (!map.has(member)) {
+          map.set(member, { id: member, name: "Team Member" });
+        }
+        return;
+      }
+
+      const id =
+        String(
+          member._id ||
+            member.id ||
+            member.userId ||
+            member.user?._id ||
+            member.user?.id ||
+            member.email ||
+            member.name
+        ) || "";
+
+      if (!id) return;
+
+      if (!map.has(id)) {
+        map.set(id, {
+          id,
+          name:
+            member.name ||
+            member.user?.name ||
+            member.fullName ||
+            member.email ||
+            "Team Member",
+          role: member.role || member.user?.role || "team-member",
+          email: member.email || member.user?.email,
+        });
+      }
+    });
+  });
+
+  return Array.from(map.values());
 };
 
 export function Dashboard() {
@@ -189,7 +236,7 @@ export function Dashboard() {
     ];
   }, [recentProjects]);
 
-  const teamMembers: any[] = [];
+  const teamMembers = useMemo(() => extractUniqueTeamMembers(projectsRaw), [projectsRaw]);
 
   const pageClass = `${getPagePaddingClass(compactMode)} bg-background text-foreground`;
   const gridGapClass = getGridGapClass(compactMode);
@@ -231,6 +278,8 @@ export function Dashboard() {
   const totalProjects = recentProjects.length;
   const totalTasks = allTasks.length;
   const doneTasks = allTasks.filter((t) => t.status === "completed").length;
+  const teamMemberCount = teamMembers.length;
+  const avgTaskCompletionRate = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0;
 
   return (
     <div className={pageClass}>
@@ -274,21 +323,21 @@ export function Dashboard() {
             <Users className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className={cardTopPaddingClass}>
-            <div className={metricValueClass}>—</div>
-            <p className="text-xs text-muted-foreground mt-1">Connect later to /team</p>
+            <div className={metricValueClass}>{teamMemberCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">Unique members across projects</p>
           </CardContent>
         </Card>
 
         <Card className="border-border bg-card text-card-foreground">
           <CardHeader className={`flex flex-row items-center justify-between ${cardHeaderPadding}`}>
-            <CardTitle className="text-sm">Avg. Completion Time</CardTitle>
+            <CardTitle className="text-sm">Avg. Task Completion</CardTitle>
             <Clock className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className={cardTopPaddingClass}>
-            <div className={metricValueClass}>—</div>
+            <div className={metricValueClass}>{avgTaskCompletionRate}%</div>
             <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
-              <TrendingDown className="w-3 h-3 text-green-600" />
-              Add later from analytics
+              <TrendingUp className="w-3 h-3 text-green-600" />
+              Based on live task status
             </p>
           </CardContent>
         </Card>

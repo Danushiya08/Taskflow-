@@ -55,6 +55,15 @@ type BackendTask = {
   dueDate?: string | null;
 };
 
+type BackendDocument = {
+  _id: string;
+  title?: string;
+  name?: string;
+  projectId?: string | { _id?: string; name?: string };
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 const toHealthStatus = (p: BackendProject): Project["status"] => {
   const progress = Math.max(0, Math.min(100, Number(p.progress ?? 0)));
   const due = p.dueDate ? new Date(p.dueDate) : null;
@@ -82,12 +91,19 @@ const chartTooltipStyle = {
   borderRadius: "8px",
 };
 
+const getProjectIdFromDocument = (doc: BackendDocument) => {
+  if (!doc?.projectId) return "";
+  if (typeof doc.projectId === "string") return String(doc.projectId);
+  return String(doc.projectId._id || "");
+};
+
 export function ClientDashboard() {
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
   const [projectsRaw, setProjectsRaw] = useState<BackendProject[]>([]);
   const [tasksRaw, setTasksRaw] = useState<BackendTask[]>([]);
+  const [documentsRaw, setDocumentsRaw] = useState<BackendDocument[]>([]);
 
   const { preferences, loadingPreferences } = useUserPreferences();
   const compactMode = preferences.compactMode;
@@ -123,8 +139,26 @@ export function ClientDashboard() {
           return tRes.data?.tasks ?? [];
         });
 
-        const results = await Promise.all(taskCalls);
-        setTasksRaw(results.flat());
+        const documentCalls = projects.map(async (p) => {
+          try {
+            const dRes = await api.get<{ documents?: BackendDocument[] } | BackendDocument[]>(
+              `/projects/${p._id}/documents`
+            );
+
+            if (Array.isArray(dRes.data)) return dRes.data;
+            return dRes.data?.documents ?? [];
+          } catch {
+            return [];
+          }
+        });
+
+        const [taskResults, documentResults] = await Promise.all([
+          Promise.all(taskCalls),
+          Promise.all(documentCalls),
+        ]);
+
+        setTasksRaw(taskResults.flat());
+        setDocumentsRaw(documentResults.flat());
       } catch (e: any) {
         setErrMsg(e?.response?.data?.message || e?.message || "Failed to load client dashboard");
       } finally {
@@ -134,6 +168,18 @@ export function ClientDashboard() {
 
     load();
   }, []);
+
+  const documentCountByProject = useMemo(() => {
+    const counts: Record<string, number> = {};
+
+    documentsRaw.forEach((doc) => {
+      const projectId = getProjectIdFromDocument(doc);
+      if (!projectId) return;
+      counts[projectId] = (counts[projectId] || 0) + 1;
+    });
+
+    return counts;
+  }, [documentsRaw]);
 
   const myProjects: Project[] = useMemo(() => {
     return projectsRaw.map((p) => {
@@ -164,9 +210,10 @@ export function ClientDashboard() {
             : p.status === "on-hold"
             ? "On Hold"
             : "Completed",
+        documentCount: documentCountByProject[p._id] || 0,
       };
     });
-  }, [projectsRaw, tasksRaw, preferences.dateFormat, formatCurrency]);
+  }, [projectsRaw, tasksRaw, preferences.dateFormat, formatCurrency, documentCountByProject]);
 
   const clientTasks: Task[] = useMemo(() => {
     return tasksRaw.map((t) => {
@@ -194,8 +241,10 @@ export function ClientDashboard() {
     const atRisk = myProjects.filter((p) => p.status !== "on-track").length;
     const top = [...myProjects].sort((a, b) => b.progress - a.progress)[0];
     const teamMembers = myProjects.reduce((sum, p) => sum + (p.teamCount ?? 0), 0);
-    return { active, onTrack, atRisk, top, teamMembers };
-  }, [myProjects]);
+    const documents = documentsRaw.length;
+
+    return { active, onTrack, atRisk, top, teamMembers, documents };
+  }, [myProjects, documentsRaw]);
 
   const projectProgressData = useMemo(() => {
     const rows = myProjects.slice(0, 6).map((p, idx) => ({
@@ -239,15 +288,45 @@ export function ClientDashboard() {
     { name: "Final Delivery", status: "upcoming", date: "—" },
   ];
 
-  const recentUpdates = [
-    {
-      title: "Projects synced",
-      project: "All Projects",
-      description: "Dashboard loaded from live backend data",
-      date: "Today",
-      type: "milestone",
-    },
-  ];
+  const recentUpdates = useMemo(() => {
+    const liveDocumentUpdates = [...documentsRaw]
+      .sort((a, b) => {
+        const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
+        const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
+        return bTime - aTime;
+      })
+      .slice(0, 3)
+      .map((doc) => {
+        const projectId = getProjectIdFromDocument(doc);
+        const projectName =
+          projectsRaw.find((p) => String(p._id) === String(projectId))?.name || "Project";
+
+        return {
+          title: doc.title || doc.name || "Document updated",
+          project: projectName,
+          description: "Latest shared document visible to client",
+          date: doc.updatedAt || doc.createdAt
+            ? formatDateByPreference(
+                doc.updatedAt || doc.createdAt || "",
+                preferences.dateFormat
+              )
+            : "Today",
+          type: "document",
+        };
+      });
+
+    if (liveDocumentUpdates.length) return liveDocumentUpdates;
+
+    return [
+      {
+        title: "Projects synced",
+        project: "All Projects",
+        description: "Dashboard loaded from live backend data",
+        date: "Today",
+        type: "milestone",
+      },
+    ];
+  }, [documentsRaw, projectsRaw, preferences.dateFormat]);
 
   const pagePadding = compactMode ? "p-4" : "p-6";
   const sectionSpacing = compactMode ? "space-y-4" : "space-y-6";
@@ -342,8 +421,8 @@ export function ClientDashboard() {
             <FileText className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className={cardTopPadding}>
-            <div className={metricValueClass}>—</div>
-            <p className="text-xs text-muted-foreground mt-1">Hook later to your docs module</p>
+            <div className={metricValueClass}>{stats.documents}</div>
+            <p className="text-xs text-muted-foreground mt-1">Live documents across your projects</p>
           </CardContent>
         </Card>
       </div>
@@ -359,7 +438,7 @@ export function ClientDashboard() {
       />
 
       <div className={`grid grid-cols-1 lg:grid-cols-2 ${gridGap}`}>
-        {myProjects.map((project) => (
+        {myProjects.map((project: any) => (
           <Card key={project.id} className="border-border bg-card text-card-foreground">
             <CardHeader className={cardHeaderPadding}>
               <div className="flex items-start justify-between">
@@ -407,11 +486,20 @@ export function ClientDashboard() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-2 border-t border-border">
-                <Users className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">
-                  {project.teamCount ?? 0} team members assigned
-                </span>
+              <div className="flex items-center justify-between gap-3 pt-2 border-t border-border flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    {project.teamCount ?? 0} team members assigned
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    {project.documentCount ?? 0} documents
+                  </span>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -513,19 +601,25 @@ export function ClientDashboard() {
         </CardHeader>
         <CardContent>
           <div className={`grid grid-cols-1 md:grid-cols-3 ${gridGap}`}>
-            <button className={`${quickActionPadding} bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-950/50 rounded-lg text-left transition-colors`}>
+            <button
+              className={`${quickActionPadding} bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-950/50 rounded-lg text-left transition-colors`}
+            >
               <FileText className="w-6 h-6 text-blue-600 mb-2" />
               <h4 className="text-sm text-card-foreground mb-1">View Reports</h4>
-              <p className="text-xs text-muted-foreground">Connect later to documents module</p>
+              <p className="text-xs text-muted-foreground">Connected to live documents count</p>
             </button>
 
-            <button className={`${quickActionPadding} bg-green-50 dark:bg-green-950/30 hover:bg-green-100 dark:hover:bg-green-950/50 rounded-lg text-left transition-colors`}>
+            <button
+              className={`${quickActionPadding} bg-green-50 dark:bg-green-950/30 hover:bg-green-100 dark:hover:bg-green-950/50 rounded-lg text-left transition-colors`}
+            >
               <Calendar className="w-6 h-6 text-green-600 mb-2" />
               <h4 className="text-sm text-card-foreground mb-1">Schedule Meeting</h4>
               <p className="text-xs text-muted-foreground">Connect later to meetings module</p>
             </button>
 
-            <button className={`${quickActionPadding} bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-950/50 rounded-lg text-left transition-colors`}>
+            <button
+              className={`${quickActionPadding} bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-950/50 rounded-lg text-left transition-colors`}
+            >
               <AlertCircle className="w-6 h-6 text-purple-600 mb-2" />
               <h4 className="text-sm text-card-foreground mb-1">Submit Feedback</h4>
               <p className="text-xs text-muted-foreground">Connect later to feedback module</p>

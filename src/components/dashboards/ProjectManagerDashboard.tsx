@@ -76,6 +76,54 @@ const chartTooltipStyle = {
   borderRadius: "8px",
 };
 
+const extractUniqueTeamMembers = (projects: BackendProject[]) => {
+  const map = new Map<string, any>();
+
+  projects.forEach((project) => {
+    const members = Array.isArray(project.members) ? project.members : [];
+
+    members.forEach((member: any) => {
+      if (!member) return;
+
+      if (typeof member === "string") {
+        if (!map.has(member)) {
+          map.set(member, { id: member, name: "Team Member" });
+        }
+        return;
+      }
+
+      const id =
+        String(
+          member._id ||
+            member.id ||
+            member.userId ||
+            member.user?._id ||
+            member.user?.id ||
+            member.email ||
+            member.name
+        ) || "";
+
+      if (!id) return;
+
+      if (!map.has(id)) {
+        map.set(id, {
+          id,
+          name:
+            member.name ||
+            member.user?.name ||
+            member.fullName ||
+            member.email ||
+            "Team Member",
+          role: member.role || member.user?.role || "team-member",
+          email: member.email || member.user?.email,
+        });
+      }
+    });
+  });
+
+  return Array.from(map.values());
+};
+
 export function ProjectManagerDashboard() {
   const [loading, setLoading] = useState(true);
   const [errMsg, setErrMsg] = useState<string | null>(null);
@@ -172,7 +220,8 @@ export function ProjectManagerDashboard() {
     ];
   }, [pmTasks]);
 
-  const teamMembers: any[] = [];
+  const teamMembers = useMemo(() => extractUniqueTeamMembers(projectsRaw), [projectsRaw]);
+  const teamMemberCount = teamMembers.length;
 
   const pagePadding = compactMode ? "p-4" : "p-6";
   const sectionSpacing = compactMode ? "space-y-4" : "space-y-6";
@@ -235,8 +284,8 @@ export function ProjectManagerDashboard() {
             <Users className="w-4 h-4 text-muted-foreground" />
           </CardHeader>
           <CardContent className={cardTopPadding}>
-            <div className={metricValueClass}>—</div>
-            <p className="text-xs text-muted-foreground mt-1">Connect later to /team</p>
+            <div className={metricValueClass}>{teamMemberCount}</div>
+            <p className="text-xs text-muted-foreground mt-1">Unique members across your projects</p>
           </CardContent>
         </Card>
 
