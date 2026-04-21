@@ -43,7 +43,7 @@ import {
   getInputSizeClass,
 } from "@/lib/uiDensity";
 
-type TaskStatus = "todo" | "in-progress" | "done";
+type TaskStatus = "backlog" | "todo" | "in-progress" | "review" | "done";
 type TaskPriority = "low" | "medium" | "high" | "critical";
 
 const NONE = "__none__";
@@ -65,6 +65,8 @@ const getStatusIcon = (status: string, compactMode = false) => {
       return <CheckCircle2 className={`${iconClass} text-green-600`} />;
     case "in-progress":
       return <Circle className={`${iconClass} text-blue-600 fill-blue-600`} />;
+    case "review":
+      return <Circle className={`${iconClass} text-yellow-600 fill-yellow-600`} />;
     default:
       return <Circle className={`${iconClass} text-muted-foreground`} />;
   }
@@ -324,7 +326,9 @@ export function TasksPage() {
   const derivedProgress = (t: any) => {
     if (typeof t?.progress === "number") return Math.max(0, Math.min(100, t.progress));
     if (t?.status === "done") return 100;
+    if (t?.status === "review") return 75;
     if (t?.status === "in-progress") return 50;
+    if (t?.status === "todo") return 25;
     return 0;
   };
 
@@ -440,8 +444,10 @@ export function TasksPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="backlog">Backlog</SelectItem>
                     <SelectItem value="todo">To Do</SelectItem>
                     <SelectItem value="in-progress">In Progress</SelectItem>
+                    <SelectItem value="review">Review</SelectItem>
                     <SelectItem value="done">Done</SelectItem>
                   </SelectContent>
                 </Select>
@@ -574,8 +580,10 @@ export function TasksPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All</SelectItem>
+            <SelectItem value="backlog">Backlog</SelectItem>
             <SelectItem value="todo">To Do</SelectItem>
             <SelectItem value="in-progress">In Progress</SelectItem>
+            <SelectItem value="review">Review</SelectItem>
             <SelectItem value="done">Done</SelectItem>
           </SelectContent>
         </Select>
@@ -652,8 +660,10 @@ export function TasksPage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
+                            <SelectItem value="backlog">Backlog</SelectItem>
                             <SelectItem value="todo">To Do</SelectItem>
                             <SelectItem value="in-progress">In Progress</SelectItem>
+                            <SelectItem value="review">Review</SelectItem>
                             <SelectItem value="done">Done</SelectItem>
                           </SelectContent>
                         </Select>

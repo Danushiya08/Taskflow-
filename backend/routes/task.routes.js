@@ -286,7 +286,7 @@ router.patch("/tasks/:id", protect, async (req, res) => {
       project: task.projectId,
       task: task._id,
       description: `Updated task "${task.title}"`,
-  });
+    });
 
     const newAssignedTo = task.assignedTo ? String(task.assignedTo) : null;
 
@@ -389,7 +389,7 @@ router.delete("/tasks/:id", protect, async (req, res) => {
       description: `Deleted task "${task.title}"`,
     });
 
-await Task.deleteOne({ _id: task._id });
+    await Task.deleteOne({ _id: task._id });
 
     await notifyByRoles({
       app: req.app,

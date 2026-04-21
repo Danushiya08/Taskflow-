@@ -1,4 +1,3 @@
-// backend/models/Task.js
 const mongoose = require("mongoose");
 
 const taskSchema = new mongoose.Schema(
@@ -10,11 +9,10 @@ const taskSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["todo", "in-progress", "done"],
+      enum: ["backlog", "todo", "in-progress", "review", "done"],
       default: "todo",
     },
 
-    // ✅ FIX: add "critical" because frontend sends it
     priority: {
       type: String,
       enum: ["low", "medium", "high", "critical"],

@@ -223,7 +223,7 @@ export function KanbanPage() {
       <div className={`flex items-center justify-between flex-wrap ${topGap}`}>
         <div>
           <h1 className={titleClass}>Kanban Board</h1>
-          <p className={subtitleClass}>Drag and drop tasks to update their status</p>
+          <p className={subtitleClass}>Track tasks across backlog, to do, in progress, review, and done</p>
         </div>
 
         <div className="flex items-center gap-3">
