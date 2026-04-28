@@ -208,6 +208,8 @@ export function TeamPage() {
     }
   }, []);
 
+  const currentUserId = currentUser?._id || currentUser?.id;
+
   const myRole = normalizeRole(currentUser?.role) as Role;
 
   const canViewTeam =
@@ -520,11 +522,20 @@ export function TeamPage() {
   };
 
   const openCall = (u: any) => {
-    if (!u?._id) return;
-    setIncomingCallData(null);
-    setCallUser(u);
-    setCallOpen(true);
-  };
+  const targetUserId = u?._id || u?.id;
+
+  if (!targetUserId) {
+    toast.error("Unable to start call. Missing user ID.");
+    return;
+  }
+
+  setIncomingCallData(null);
+  setCallUser({
+    ...u,
+    _id: targetUserId,
+  });
+  setCallOpen(true);
+};
 
   const submitAssign = async () => {
     if (!assignUser?._id) return;
@@ -901,22 +912,28 @@ export function TeamPage() {
                           >
                             Details
                           </Button>
-
-                          <Button
-                            variant="default"
-                            size={actionButtonSize}
-                            className={buttonCompactClass}
-                            disabled={!active || !currentUser?._id || currentUser?._id === u._id}
-                            title={
-                              currentUser?._id === u._id
-                                ? "You cannot call yourself"
-                                : "Start video call"
-                            }
-                            onClick={() => openCall(u)}
-                          >
-                            <Video className="w-4 h-4 mr-2" />
-                            Video Call
-                          </Button>
+                        
+                      {myRole !== "team-member" && (
+                        <Button
+                          variant="default"
+                          size={actionButtonSize}
+                          className={buttonCompactClass}
+                          disabled={!active || !currentUserId || currentUserId === (u._id || u.id)}
+                          title={
+                            currentUserId === (u._id || u.id)
+                          ? "You cannot call yourself"
+                          : "Start video call"
+                        }
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          openCall(u);
+                          }}
+                        >
+                          <Video className="w-4 h-4 mr-2" />
+                          Video Call
+                        </Button>
+                      )}
                         </div>
                       </div>
                     </div>
@@ -1536,11 +1553,11 @@ export function TeamPage() {
             </DialogDescription>
           </DialogHeaderUI>
 
-          {currentUser?._id && callUser?._id ? (
+          {currentUserId && callUser?._id ? (
             <VideoCall
-              currentUserId={currentUser._id}
-              targetUserId={callUser._id}
-              initialIncomingCall={incomingCallData}
+               currentUserId={currentUserId}
+               targetUserId={callUser._id}
+               initialIncomingCall={incomingCallData}
             />
           ) : (
             <div className="text-sm text-muted-foreground">

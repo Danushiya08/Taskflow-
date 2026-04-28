@@ -1,6 +1,7 @@
 import { io } from "socket.io-client";
 
 const socket = io("https://taskflow-production-8484.up.railway.app", {
+  path: "/socket.io",
   withCredentials: true,
   transports: ["websocket", "polling"],
 

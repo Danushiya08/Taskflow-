@@ -38,6 +38,12 @@ export default function VideoCall({
   }, [initialIncomingCall]);
 
   useEffect(() => {
+    if (currentUserId) {
+      socket.emit("join", currentUserId);
+    }
+  }, [currentUserId]);
+
+  useEffect(() => {
     let mounted = true;
     let localStream: MediaStream | null = null;
 
@@ -93,13 +99,30 @@ export default function VideoCall({
   }, []);
 
   useEffect(() => {
-    const handleCallAccepted = async ({ signal }: { signal: RTCSessionDescriptionInit }) => {
+    const handleIncomingCall = ({
+      from,
+      signal,
+    }: {
+      from: string;
+      signal: RTCSessionDescriptionInit;
+    }) => {
+      setIncomingCall({ from, signal });
+      setStatus(`Incoming call from ${from}`);
+      setError("");
+    };
+
+    const handleCallAccepted = async ({
+      signal,
+    }: {
+      signal: RTCSessionDescriptionInit;
+    }) => {
       try {
         if (!peerConnectionRef.current) return;
 
         await peerConnectionRef.current.setRemoteDescription(
           new RTCSessionDescription(signal)
         );
+
         setCallStarted(true);
         setStatus("Call connected");
       } catch (err) {
@@ -108,7 +131,11 @@ export default function VideoCall({
       }
     };
 
-    const handleIceCandidate = async ({ candidate }: { candidate: RTCIceCandidateInit }) => {
+    const handleIceCandidate = async ({
+      candidate,
+    }: {
+      candidate: RTCIceCandidateInit;
+    }) => {
       try {
         if (!peerConnectionRef.current || !candidate) return;
 
@@ -127,11 +154,13 @@ export default function VideoCall({
       setStatus("Call ended");
     };
 
+    socket.on("incoming-call", handleIncomingCall);
     socket.on("call-accepted", handleCallAccepted);
     socket.on("ice-candidate", handleIceCandidate);
     socket.on("call-ended", handleCallEnded);
 
     return () => {
+      socket.off("incoming-call", handleIncomingCall);
       socket.off("call-accepted", handleCallAccepted);
       socket.off("ice-candidate", handleIceCandidate);
       socket.off("call-ended", handleCallEnded);
@@ -153,7 +182,14 @@ export default function VideoCall({
 
   const createPeerConnection = () => {
     const pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        {
+          urls: "turn:relay.metered.ca:80",
+          username: "open",
+          credential: "open",
+        },
+      ],
     });
 
     pc.ontrack = (event) => {
@@ -303,14 +339,18 @@ export default function VideoCall({
 
       <div className="flex flex-wrap gap-3">
         {!incomingCall && !callStarted && (
-          <Button onClick={startCall}>Start Call</Button>
+          <Button type="button" onClick={startCall}>
+            Start Call
+          </Button>
         )}
 
         {incomingCall && !callStarted && (
-          <Button onClick={answerCall}>Answer Call</Button>
+          <Button type="button" onClick={answerCall}>
+            Answer Call
+          </Button>
         )}
 
-        <Button variant="destructive" onClick={endCall}>
+        <Button type="button" variant="destructive" onClick={endCall}>
           End Call
         </Button>
       </div>
