@@ -46,20 +46,62 @@ git clone https://github.com/Danushiya08/Taskflow-.git
 cd Taskflow
 ```
 
-### Install frontend dependencies
+---
+
+## Frontend Setup
 
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-### Install backend dependencies
+
+Frontend runs on:
+
+```text
+http://localhost:5173
+```
+
+---
+
+## Backend Setup
 
 ```bash
 cd backend
 npm install
-npm run dev
+node server.js
 ```
+
+Backend runs on:
+
+```text
+http://localhost:5000
+```
+
+---
+
+## Docker Setup
+
+Run the complete application using Docker:
+
+```bash
+docker compose up --build
+```
+
+Open the application:
+
+```text
+http://localhost
+```
+
+Stop Docker containers:
+
+```bash
+docker compose down
+```
+
+---
+
 ## Environment Variables
 
 Create a `.env` file in the backend folder:
@@ -75,6 +117,8 @@ Create a `.env` file in the frontend folder:
 ```env
 VITE_API_URL=your_backend_api_url
 ```
+
+---
 
 ## Author
 
